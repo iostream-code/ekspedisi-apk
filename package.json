@@ -1,0 +1,23 @@
+{
+  "name": "driver-tracking-app",
+  "version": "1.0.0",
+  "description": "Aplikasi tracking supir (driver & admin) berbasis Cordova + jQuery + Tailwind + Vite",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "cordova:prepare": "npm run build && cordova prepare",
+    "cordova:android": "npm run build && cordova run android",
+    "cordova:ios": "npm run build && cordova run ios"
+  },
+  "dependencies": {
+    "jquery": "^3.7.1",
+    "leaflet": "^1.9.4"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "vite": "^5.4.10"
+  }
+}

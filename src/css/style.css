@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body { height: 100%; }
+  #app { display: flex; flex-direction: column; }
+}
+
+@layer components {
+  /* Tombol utama - dipakai untuk aksi kritikal seperti ambil foto / kirim */
+  .btn-route {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-route px-5 py-3.5
+           font-display font-semibold text-white shadow-card active:scale-[0.98] transition
+           disabled:opacity-40 disabled:pointer-events-none;
+  }
+  .btn-brand {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-3.5
+           font-display font-semibold text-white shadow-card active:scale-[0.98] transition
+           disabled:opacity-40 disabled:pointer-events-none;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3.5
+           font-display font-semibold text-ink active:scale-[0.98] transition;
+  }
+  .card {
+    @apply rounded-2xl bg-white shadow-card;
+  }
+  .status-dot { @apply inline-block h-2.5 w-2.5 rounded-full; }
+  .status-dot.online { @apply bg-status-online; }
+  .status-dot.resting { @apply bg-status-resting; }
+  .status-dot.offline { @apply bg-status-offline; }
+
+  /* Signature element: garis rute putus-putus penghubung antar checkpoint di step wizard */
+  .route-track {
+    @apply relative flex flex-col;
+  }
+  .route-track .route-step {
+    @apply relative flex items-start gap-4 pb-8 pl-1;
+  }
+  .route-track .route-step:last-child { @apply pb-0; }
+  .route-track .route-step::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 34px;
+    bottom: -8px;
+    width: 2px;
+    background-image: linear-gradient(to bottom, theme('colors.slate.300') 0, theme('colors.slate.300') 6px, transparent 6px, transparent 12px);
+    background-size: 2px 12px;
+  }
+  .route-track .route-step:last-child::before { content: none; }
+  .route-track .route-step.done::before {
+    background-image: linear-gradient(to bottom, theme('colors.brand.400') 0, theme('colors.brand.400') 6px, transparent 6px, transparent 12px);
+  }
+  .route-marker {
+    @apply relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-slate-300 bg-white text-xs font-bold text-slate-400;
+  }
+  .route-step.done .route-marker { @apply border-brand-600 bg-brand-600 text-white; }
+  .route-step.active .route-marker { @apply border-route bg-route text-white; }
+}
