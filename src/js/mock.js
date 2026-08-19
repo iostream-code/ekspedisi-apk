@@ -37,7 +37,7 @@ const store = {
     {
       id: 1, no_surat_jalan: 'SJ-20260819-0001', trip_id: 101, penjualan_id: null,
       driver_id: 1, nama_supir: 'Budi Santoso', tujuan: 'Gudang Sidoarjo -> Toko Makmur Jaya',
-      kendaraan: null, plat: null, pengirim: null, jumlah_kirim: null, tgl_kirim: null,
+      kendaraan: null, plat: null, penerima: null, jumlah_kirim: null, tgl_kirim: null,
       foto_surat_jalan: null, foto_validasi: null, divalidasi_oleh: null, divalidasi_at: null,
       nama_validator: null, items: [], catatan: null, status: 'draft', created_at: new Date().toISOString(),
     },
@@ -100,6 +100,17 @@ const DUMMY_PENJUALAN_ITEMS = {
     { penjualan_detail_performa_id: 503, penjualan_jenis: 'Tas Ransel', penjualan_qty: 20, terkirim: 20, sisa: 0 },
   ],
 };
+
+// Cari 1 lini produk by id, TERLEPAS dari SPK mana asalnya -- meniru
+// PenjualanItemLookup::findLine() di driver-apk-backend (dipakai POST
+// /admin/sj krn 1 SJ sekarang boleh berisi lini produk dari beberapa SPK).
+function findDummyLine(penjualanDetailPerformaId) {
+  for (const [spkId, lines] of Object.entries(DUMMY_PENJUALAN_ITEMS)) {
+    const line = lines.find((l) => l.penjualan_detail_performa_id === penjualanDetailPerformaId);
+    if (line) return { spkId, line };
+  }
+  return null;
+}
 
 function nextStepLabel(trip) {
   const next = STEPS.find((s) => !trip.completed_steps.includes(s));
@@ -192,7 +203,7 @@ export function mockRequest(path, method, data) {
           tujuan: trip.destination || null,
           kendaraan: null,
           plat: null,
-          pengirim: null,
+          penerima: null,
           jumlah_kirim: null,
           tgl_kirim: null,
           foto_validasi: null,
@@ -286,53 +297,59 @@ export function mockRequest(path, method, data) {
     return deferred.promise();
   }
 
-  // POST /admin/sj -> bikin surat jalan manual dari admin, items opsional (breakdown per lini SPK)
+  // POST /admin/sj -> bikin surat jalan manual dari admin -- driver_id WAJIB,
+  // items opsional (breakdown per lini produk, BOLEH lintas beberapa SPK sekaligus)
   if (method === 'POST' && path === '/admin/sj') {
-    const driver = data.driver_id ? store.drivers.find((d) => d.id === Number(data.driver_id)) : null;
-    const lines = data.penjualan_id ? DUMMY_PENJUALAN_ITEMS[data.penjualan_id] : null;
-    const items = (data.items && lines)
-      ? data.items.map((it) => {
-        const line = lines.find((l) => l.penjualan_detail_performa_id === Number(it.penjualan_detail_performa_id));
-        if (line) {
+    const deferredStore = $.Deferred();
+    setTimeout(() => {
+      if (!data.driver_id) { deferredStore.reject({ responseJSON: { message: 'Supir wajib dipilih.' } }); return; }
+      const driver = store.drivers.find((d) => d.id === Number(data.driver_id));
+      if (!driver) { deferredStore.reject({ responseJSON: { message: 'Supir tidak ditemukan.' } }); return; }
+
+      const items = (data.items || []).map((it) => {
+        const found = findDummyLine(Number(it.penjualan_detail_performa_id));
+        if (found) {
           // Kurangi sisa dummy supaya validasi kelihatan nyata kalau dicek lagi/dikirim lagi.
-          line.terkirim += Number(it.jumlah_kirim);
-          line.sisa = Math.max(0, line.penjualan_qty - line.terkirim);
+          found.line.terkirim += Number(it.jumlah_kirim);
+          found.line.sisa = Math.max(0, found.line.penjualan_qty - found.line.terkirim);
         }
         return {
           id: Math.random(),
           penjualan_detail_performa_id: Number(it.penjualan_detail_performa_id),
           jumlah_kirim: Number(it.jumlah_kirim),
-          penjualan_jenis: line ? line.penjualan_jenis : null,
+          penjualan_jenis: found ? found.line.penjualan_jenis : null,
+          penjualan_id: found ? found.spkId : null,
         };
-      })
-      : [];
-    const jumlahKirim = items.length ? items.reduce((sum, it) => sum + it.jumlah_kirim, 0) : (data.jumlah_kirim ? Number(data.jumlah_kirim) : null);
+      });
+      const jumlahKirim = items.length ? items.reduce((sum, it) => sum + it.jumlah_kirim, 0) : (data.jumlah_kirim ? Number(data.jumlah_kirim) : null);
 
-    const sj = {
-      id: store.nextSjId++,
-      trip_id: null,
-      penjualan_id: data.penjualan_id || null,
-      driver_id: driver ? driver.id : null,
-      nama_supir: driver ? driver.name : null,
-      tujuan: data.tujuan || null,
-      kendaraan: data.kendaraan || null,
-      plat: data.plat || null,
-      pengirim: data.pengirim || null,
-      jumlah_kirim: jumlahKirim,
-      tgl_kirim: data.tgl_kirim || null,
-      items,
-      foto_surat_jalan: null,
-      foto_validasi: null,
-      divalidasi_oleh: null,
-      divalidasi_at: null,
-      nama_validator: null,
-      catatan: data.catatan || null,
-      status: 'draft',
-      created_at: new Date().toISOString(),
-    };
-    sj.no_surat_jalan = `SJ-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(sj.id).padStart(4, '0')}`;
-    store.suratJalan.push(sj);
-    return delay(sj, 400);
+      const sj = {
+        id: store.nextSjId++,
+        trip_id: null,
+        penjualan_id: null,
+        driver_id: driver.id,
+        nama_supir: driver.name,
+        tujuan: data.tujuan || null,
+        kendaraan: data.kendaraan || null,
+        plat: data.plat || null,
+        penerima: data.penerima || null,
+        jumlah_kirim: jumlahKirim,
+        tgl_kirim: data.tgl_kirim || null,
+        items,
+        foto_surat_jalan: null,
+        foto_validasi: null,
+        divalidasi_oleh: null,
+        divalidasi_at: null,
+        nama_validator: null,
+        catatan: data.catatan || null,
+        status: 'draft',
+        created_at: new Date().toISOString(),
+      };
+      sj.no_surat_jalan = `SJ-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(sj.id).padStart(4, '0')}`;
+      store.suratJalan.push(sj);
+      deferredStore.resolve(sj);
+    }, 400);
+    return deferredStore.promise();
   }
 
   // POST /admin/sj/:id/photo -> lampirkan foto ke SJ (mis. dari form manual admin)
@@ -391,9 +408,15 @@ export function mockRequest(path, method, data) {
   }
 
   // GET /admin/spk-belum-sj -> tab "SPK" -- SPK ready-kirim yang belum ada SJ sama sekali
-  // (kriteria beda dari spk-ready-kirim di atas, lihat SpkReadyKirim::listBelumSj())
+  // (kriteria beda dari spk-ready-kirim di atas, lihat SpkReadyKirim::listBelumSj()).
+  // Dicek dari header penjualan_id (jalur trip-linked lama) DAN items[].penjualan_id
+  // (jalur manual breakdown produk, bisa lintas SPK) -- sama seperti query aslinya.
   if (method === 'GET' && path === '/admin/spk-belum-sj') {
-    const spkYangSudahAdaSj = new Set(store.suratJalan.map((sj) => sj.penjualan_id).filter(Boolean));
+    const spkYangSudahAdaSj = new Set();
+    store.suratJalan.forEach((sj) => {
+      if (sj.penjualan_id) spkYangSudahAdaSj.add(sj.penjualan_id);
+      (sj.items || []).forEach((it) => { if (it.penjualan_id) spkYangSudahAdaSj.add(it.penjualan_id); });
+    });
     return delay(DUMMY_SPK_READY_KIRIM.filter((spk) => !spkYangSudahAdaSj.has(spk.penjualan_id)), 300);
   }
 

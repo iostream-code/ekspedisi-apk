@@ -136,11 +136,11 @@ benar-benar dipanggil `api.js`/pages), dan cocok persis dengan
 | GET | `/admin/surat-jalan/:no` | `adminNewTrip.js` (tombol "Cek") | — | `{ no_surat_jalan, tanggal, kendaraan, plat, pengirim, valid_cs, client_nama, client_alamat }`, 404 kalau tidak ketemu |
 | GET | `/admin/spk-ready-kirim` | `adminSpkKirim.js` (halaman "Plot SPK ke Supir") | — | SPK ready-kirim **belum diplot ke supir** → `[{ penjualan_id, no_spk, client_nama, kota_asal, kota_tujuan, penjualan_tanggal_kirim, tgl_cs_deadline, penjualan_total_qty }]` |
 | GET | `/admin/spk-belum-sj` | `adminSpkBelumSj.js` (tab "SPK", halaman awal admin) | — | SPK ready-kirim **belum ada SJ sama sekali** (kriteria beda dari baris di atas, independen — lihat README `ekspedisi-apk-backend`) → bentuk field sama persis |
-| GET | `/admin/sj/spk/:penjualan_id/items` | `adminNewSuratJalan.js` (tombol "Cek" di field Nomor SPK) | — | `[{ penjualan_detail_performa_id, penjualan_jenis, penjualan_qty, terkirim, sisa }]`, 404 kalau SPK tidak ketemu |
-| GET | `/admin/sj` | `adminSuratJalan.js` | query opsional: `status`, `penjualan_id` | `[{ id, no_surat_jalan, trip_id, penjualan_id, driver_id, nama_supir, tujuan, kendaraan, plat, pengirim, jumlah_kirim, tgl_kirim, items: [{ penjualan_detail_performa_id, penjualan_jenis, jumlah_kirim }], foto_surat_jalan, foto_validasi, divalidasi_oleh, divalidasi_at, nama_validator, catatan, status, created_at }]` |
-| POST | `/admin/sj` | `adminNewSuratJalan.js` | `{ tujuan, driver_id?, kendaraan?, plat?, pengirim?, jumlah_kirim?, tgl_kirim?, catatan?, penjualan_id?, items?: [{ penjualan_detail_performa_id, jumlah_kirim }] }` | 201, `{ ...surat jalan baru, no_surat_jalan auto-generated }`, 422 kalau ada item melebihi sisa qty |
+| GET | `/admin/sj/spk/:penjualan_id/items` | `adminNewSuratJalan.js` (tombol "+ Tambah" di field Nomor SPK, bisa dipanggil berkali-kali utk beberapa SPK) | — | `[{ penjualan_detail_performa_id, penjualan_jenis, penjualan_qty, terkirim, sisa }]`, 404 kalau SPK tidak ketemu |
+| GET | `/admin/sj` | `adminSuratJalan.js` | query opsional: `status`, `penjualan_id` | `[{ id, no_surat_jalan, trip_id, penjualan_id, driver_id, nama_supir, tujuan, kendaraan, plat, penerima, jumlah_kirim, tgl_kirim, items: [{ penjualan_detail_performa_id, penjualan_id, penjualan_jenis, jumlah_kirim }], foto_surat_jalan, foto_validasi, divalidasi_oleh, divalidasi_at, nama_validator, catatan, status, created_at }]` |
+| POST | `/admin/sj` | `adminNewSuratJalan.js` | `{ tujuan, driver_id (WAJIB), kendaraan?, plat?, penerima?, jumlah_kirim?, tgl_kirim?, catatan?, items?: [{ penjualan_detail_performa_id, jumlah_kirim }] }` | 201, `{ ...surat jalan baru, no_surat_jalan auto-generated }`, 422 kalau `driver_id` kosong atau ada item melebihi sisa qty. `items` boleh lintas beberapa SPK sekaligus, tidak ada param `penjualan_id` lagi |
 | GET | `/admin/sj/:id` | (belum dipanggil dari UI) | — | `{ ...detail surat jalan }`, 404 kalau tidak ketemu |
-| PUT | `/admin/sj/:id` | (belum ada UI edit) | field opsional: `tujuan, kendaraan, plat, pengirim, jumlah_kirim, tgl_kirim, catatan` | `{ ...surat jalan terupdate }` |
+| PUT | `/admin/sj/:id` | (belum ada UI edit) | field opsional: `tujuan, kendaraan, plat, penerima, jumlah_kirim, tgl_kirim, catatan` | `{ ...surat jalan terupdate }` |
 | POST | `/admin/sj/:id/photo` | `adminNewSuratJalan.js` (kalau admin ambil foto sebelum submit) | multipart: `photo` | `{ ...surat jalan, status: 'terkirim' }` |
 | POST | `/admin/sj/:id/validasi` | `adminSuratJalan.js` (tombol "Validasi", foto SJ final bertandatangan) | multipart: `photo` | `{ ...surat jalan, status: 'tervalidasi' }`, 422 kalau sudah tervalidasi |
 
@@ -167,32 +167,48 @@ lengkap (kapan order masuk daftar ini, kenapa) ada di README `ekspedisi-apk-back
 (punya lampiran `no_surat_jalan` di atas). Dua jalur pembuatan: (1) **otomatis**, terbentuk/
 terlengkapi tiap kali supir upload foto checkpoint bertipe `sj` di `driverWorkflow.js` (baris
 berstatus `terkirim` begitu foto masuk); (2) **manual**, lewat `adminNewSuratJalan.js` — admin
-bikin baris tanpa trip sama sekali (`trip_id: null`), supir opsional, isi `tujuan`/`kendaraan`/
-`plat`/`pengirim`/`jumlah_kirim`/`tgl_kirim`, foto opsional (tombol "Ambil Foto", `camera.js` —
-diupload lewat `POST /admin/sj/:id/photo` sesaat setelah SJ-nya tersimpan). Field non-foto bisa
-diedit belakangan lewat `PUT /admin/sj/:id` (backend siap, UI edit belum ada). Nomor
-`no_surat_jalan` (format `SJ-YYYYMMDD-xxxx`) di-generate otomatis oleh backend setelah insert —
-sengaja tetap begitu, tidak diketik manual seperti di `surat-jalan-apk`. Detail penuh (struktur
-kolom, FK, alasan skema terpisah) ada di README `ekspedisi-apk-backend`.
+bikin baris tanpa trip sama sekali (`trip_id: null`), **Supir WAJIB dipilih** (2026-08-20, dulu
+opsional — lihat catatan di bawah), isi `tujuan`/`kendaraan`/`plat`/`penerima`/`jumlah_kirim`/
+`tgl_kirim`, foto opsional (tombol "Ambil Foto", `camera.js` — diupload lewat
+`POST /admin/sj/:id/photo` sesaat setelah SJ-nya tersimpan). Field non-foto bisa diedit
+belakangan lewat `PUT /admin/sj/:id` (backend siap, UI edit belum ada). Nomor `no_surat_jalan`
+(format `SJ-YYYYMMDD-xxxx`) di-generate otomatis oleh backend setelah insert — sengaja tetap
+begitu, tidak diketik manual seperti di `surat-jalan-apk`. Detail penuh (struktur kolom, FK,
+alasan skema terpisah) ada di README `ekspedisi-apk-backend`.
 
-**Terikat ke SPK, dengan breakdown per produk** (2026-08-20) — ditelusuri ulang alur input SJ
-asli, ternyata SJ **selalu** melekat ke SPK (`t_penjualan_header`, lewat lini produk
-`t_penjualan_detail_performa`), bukan dokumen lepas seperti asumsi awal. Di form "Buat Surat
-Jalan", isi "Nomor SPK" lalu klik "Cek" (`GET /admin/sj/spk/:id/items`) — kalau ketemu, tampil
-daftar lini produk SPK itu (nama produk, qty dipesan, sisa yang belum terkirim dari SEMUA
-sumber — SJ lama `surat-jalan-apk` maupun SJ baru app ini) dengan input jumlah kirim per lini
-(dibatasi `max` ke sisa qty, dobel-dicek lagi di server saat submit). Field "Jumlah kirim" flat
-disembunyikan begitu ada breakdown lini produk — nilainya dihitung otomatis dari total item.
-Kosongkan "Nomor SPK" untuk tetap bisa bikin SJ lepas (mis. sampel/transfer internal) dengan
-jumlah kirim manual seperti sebelumnya. Breakdown per SJ ditampilkan juga di kolom "Kirim" pada
-tabel `adminSuratJalan.js`. Detail lengkap (kenapa tabel item terpisah, kenapa sisa qty dihitung
-lintas 2 sumber) ada di README `ekspedisi-apk-backend`.
+**Terikat ke SPK, dengan breakdown per produk — BOLEH LINTAS BEBERAPA SPK** (2026-08-20,
+direvisi hari yang sama) — ditelusuri ulang alur input SJ asli, ternyata SJ **selalu** melekat
+ke SPK (`t_penjualan_header`, lewat lini produk `t_penjualan_detail_performa`), dan realitasnya
+1 dokumen SJ fisik (1 truk, sekali jalan) **bisa mengangkut pesanan gabungan dari lebih dari 1
+SPK sekaligus** — bukan cuma 1 SPK per SJ seperti asumsi rancangan awal. Di form "Buat Surat
+Jalan": isi "Nomor SPK", klik "+ Tambah" — SPK itu jadi 1 **grup section** berisi breakdown
+lini produknya sendiri (nama produk, qty dipesan, sisa yang belum terkirim dari SEMUA sumber —
+SJ lama `surat-jalan-apk` maupun SJ baru app ini) dengan input jumlah kirim per lini (dibatasi
+`max` ke sisa qty, dobel-dicek lagi di server saat submit per-item). Ulangi isi+Tambah kalau ada
+SPK lain yang mau diangkut SJ yang sama — tiap grup punya tombol "Hapus" sendiri, dan SPK yang
+sama tidak bisa ditambah dobel (ditolak dgn pesan "SPK ini sudah ditambahkan"). Field "Jumlah
+kirim" flat disembunyikan begitu ada minimal 1 grup SPK — nilainya dihitung otomatis dari total
+SEMUA item lintas grup. Jangan tambah SPK apa pun untuk tetap bisa bikin SJ lepas (mis.
+sampel/transfer internal) dengan jumlah kirim manual seperti sebelumnya. Breakdown per SJ
+ditampilkan juga di kolom "Kirim" pada tabel `adminSuratJalan.js`, dan daftar SPK yang disentuh
+(bisa lebih dari satu, dipisah koma) di kolom "No SJ". Detail lengkap (kenapa tabel item
+terpisah, kenapa validasi per-item bukan per-SPK, kenapa sisa qty dihitung lintas 2 sumber) ada
+di README `ekspedisi-apk-backend`.
 
-**Entry point dari tab "SPK"** (2026-08-20) — tombol "Buat SJ" di `adminSpkBelumSj.js` (lihat
-bagian Routing di bawah) nitip `penjualan_id` yang dipilih lewat `prefill.js` (state kecil di
-memori, bukan query string — `router.js` hash-based belum dukung itu) sebelum `navigate('/admin/sj/new')`
-— begitu form "Buat Surat Jalan" render, `consumePrefillPenjualanId()` langsung isi field "Nomor
-SPK" & jalankan "Cek" otomatis, admin tidak perlu ketik ulang.
+**Entry point dari tab "SPK"** (2026-08-20) — tombol "Surat Jalan" di `adminSpkBelumSj.js`
+(lihat bagian Routing di bawah) nitip `penjualan_id` yang dipilih lewat `prefill.js` (state
+kecil di memori, bukan query string — `router.js` hash-based belum dukung itu) sebelum
+`navigate('/admin/sj/new')` — begitu form "Buat Surat Jalan" render, `consumePrefillPenjualanId()`
+langsung nambahin SPK itu sebagai grup pertama, admin tidak perlu ketik ulang (tapi tetap bisa
+tambah SPK lain lagi sesudahnya kalau perlu).
+
+**Pengirim → Penerima, Supir jadi wajib** (2026-08-20) — dua koreksi setelah dipakai: field
+"Pengirim" (nama org serah-terima) dihapus, dianggap tumpang tindih sama konsep supir yang
+sudah ada (SJ selalu punya supir). Diganti **"Penerima"** (opsional) — nama PIC di TUJUAN,
+supaya supir tahu siapa yang harus dihubungi/diserahi barang. Field "Supir" yang sebelumnya
+opsional ("-- Belum ditentukan --") sekarang **wajib dipilih** (`required` di `<select>`,
+opsi kosong dijadikan `disabled` — submit diblokir validasi native browser kalau belum pilih,
+dobel-dicek lagi di server).
 
 **Alur validasi** (2026-08-19) — memodelkan proses fisik: SJ dibawa supir → ditandatangani
 penerima saat barang diterima → dibawa balik ke admin → admin foto dokumen final itu. Tombol
@@ -210,8 +226,11 @@ README `ekspedisi-apk-backend`.
 lihat `pages/surat_jalan.html` di sana), disesuaikan ke sistem desain Tailwind app ini lewat
 `components/tableToolbar.js`. Tombol **Riwayat** toggle (bukan popup terpisah — app ini belum
 punya komponen modal) antara daftar aktif & mode riwayat, data yang sama di-refetch/filter ulang:
-- Tab SPK: aktif = `GET /admin/spk-belum-sj`; riwayat = `GET /admin/sj` difilter client-side ke
-  baris yang `penjualan_id`-nya terisi (SPK yang sudah dibuatkan SJ, hilang dari daftar aktif).
+- Tab SPK: aktif = `GET /admin/spk-belum-sj`; riwayat = `GET /admin/sj` di-"flatten" client-side
+  jadi 1 baris tabel PER SPK yang disentuh tiap SJ (dari `items[].penjualan_id`, fallback ke
+  header `penjualan_id` utk SJ trip-linked lama) — 1 SJ yang lintas beberapa SPK jadi beberapa
+  baris di tabel riwayat ini, supaya kolom SPK-nya tetap 1 nilai per baris (lihat
+  `flattenSjBySpk()` di `adminSpkBelumSj.js`).
 - Tab SJ: aktif = semua status tercampur (`GET /admin/sj` apa adanya, memang tujuan utama tab
   ini); riwayat = difilter client-side ke `status === 'tervalidasi'` saja.
 

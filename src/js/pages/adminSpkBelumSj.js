@@ -10,6 +10,22 @@ import { setPrefillPenjualanId } from '../prefill.js';
 const SJ_STATUS_LABEL = { draft: 'Draft', terkirim: 'Terkirim', tervalidasi: 'Tervalidasi' };
 
 /**
+ * 1 baris SJ -> 1 baris tabel PER SPK yang disentuh (biasanya 1, tapi bisa
+ * lebih -- lihat App\Support\SuratJalan::items() di ekspedisi-apk-backend).
+ * SJ tanpa SPK sama sekali (freeform) tidak ikut, krn tabel ini SPK-sentris.
+ */
+function flattenSjBySpk(sjList) {
+  const rows = [];
+  sjList.forEach((sj) => {
+    const spkIds = [...new Set((sj.items || []).map((it) => it.penjualan_id).filter(Boolean))];
+    (spkIds.length ? spkIds : sj.penjualan_id ? [sj.penjualan_id] : []).forEach((penjualanId) => {
+      rows.push({ ...sj, penjualan_id: penjualanId });
+    });
+  });
+  return rows;
+}
+
+/**
  * Tab "SPK" -- halaman awal admin setelah login. Model tabel (bukan kartu),
  * meniru pola toolbar "Data | jumlah + tombol Refresh/Riwayat" di
  * surat-jalan-apk (lihat components/tableToolbar.js).
@@ -20,9 +36,11 @@ const SJ_STATUS_LABEL = { draft: 'Draft', terkirim: 'Terkirim', tervalidasi: 'Te
  *   "belum diplot ke supir" -- 2 hal independen, lihat
  *   App\Support\SpkReadyKirim::listBelumSj() di ekspedisi-apk-backend). Aksi
  *   per baris cuma "Surat Jalan" -- plotting ke supir ada di tab Ekspedisi.
- * - Riwayat: SPK yang SUDAH ada SJ-nya -- diturunkan dari GET /admin/sj
- *   (filter baris yang penjualan_id-nya terisi), tidak ada endpoint baru
- *   khusus krn datanya sudah tersedia dari situ.
+ * - Riwayat: SPK yang SUDAH ada SJ-nya -- diturunkan dari GET /admin/sj,
+ *   tidak ada endpoint baru khusus krn datanya sudah tersedia dari situ. 1
+ *   baris SJ di-"flatten" jadi beberapa baris tabel kalau items-nya
+ *   menyentuh lebih dari 1 SPK sekaligus (2026-08-20), supaya kolom SPK di
+ *   sini selalu 1 nilai per baris.
  */
 export async function renderAdminSpkBelumSj($container) {
   renderNavbar($container, 'Ekspedisi');
@@ -38,9 +56,7 @@ export async function renderAdminSpkBelumSj($container) {
 
     let rows;
     try {
-      rows = historyMode
-        ? (await api.get('/admin/sj')).filter((sj) => sj.penjualan_id)
-        : await api.get('/admin/spk-belum-sj');
+      rows = historyMode ? flattenSjBySpk(await api.get('/admin/sj')) : await api.get('/admin/spk-belum-sj');
     } catch (e) {
       $main.html('<p class="p-4 text-status-alert">Gagal memuat data.</p>');
       return;

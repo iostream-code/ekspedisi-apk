@@ -8,9 +8,14 @@ import { consumePrefillPenjualanId } from '../prefill.js';
 
 /**
  * Bikin surat jalan MANUAL dari layar admin -- tidak terikat trip manapun
- * (beda dari jalur otomatis lewat checkpoint foto "sj" supir). Supir opsional
- * -- SJ boleh dibuat dulu, diisi supirnya belakangan lewat PUT /admin/sj/{id}
- * (belum ada UI edit-nya, backend sudah siap).
+ * (beda dari jalur otomatis lewat checkpoint foto "sj" supir). Supir WAJIB
+ * dipilih (2026-08-20 -- dulu opsional, tapi itu bikin ambigu siapa yang
+ * bawa dokumen fisiknya; kalau supirnya memang belum ada, buat SJ-nya
+ * belakangan juga setelah ada supir).
+ *
+ * 1 SJ boleh mengangkut lini produk dari LEBIH DARI 1 SPK sekaligus
+ * (2026-08-20) -- admin bisa "Tambah" beberapa nomor SPK berturut-turut,
+ * tiap SPK jadi 1 grup section dengan breakdown produknya sendiri.
  */
 export async function renderAdminNewSuratJalan($container) {
   renderNavbar($container, 'Buat Surat Jalan', { onBack: () => navigate('/admin/sj') });
@@ -31,16 +36,16 @@ export async function renderAdminNewSuratJalan($container) {
   $main.html(`
     <form id="new-sj-form" class="card space-y-4 p-4">
       <div>
-        <label class="mb-1 block text-sm font-medium text-slate-600">Nomor SPK (opsional)</label>
+        <label class="mb-1 block text-sm font-medium text-slate-600">Nomor SPK</label>
         <div class="flex gap-2">
           <input id="penjualan_id" type="text" placeholder="Contoh: INV_01701-5"
             class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
-          <button type="button" id="btn-cek-spk" class="btn-ghost shrink-0 !py-2.5 px-4 text-sm">Cek</button>
+          <button type="button" id="btn-tambah-spk" class="btn-ghost shrink-0 !py-2.5 px-4 text-sm">+ Tambah</button>
         </div>
-        <p class="mt-1.5 text-xs text-slate-400">SJ pada dasarnya selalu mengirim isi 1 SPK -- isi nomornya
-          supaya jumlah kirim per produk tercatat & tervalidasi ke sisa qty yang belum terkirim. Kosongkan
-          cuma kalau ini pengiriman lepas (bukan dari SPK, mis. sampel/transfer internal).</p>
-        <div id="spk-items" class="mt-3 hidden space-y-2"></div>
+        <p class="mt-1.5 text-xs text-slate-400">1 SJ boleh mengangkut lebih dari 1 SPK sekaligus -- isi nomor,
+          klik Tambah, ulangi kalau ada SPK lain. Breakdown per produk & sisa qty tercatat otomatis. Jangan
+          tambah SPK apa pun kalau ini pengiriman lepas (bukan dari SPK, mis. sampel/transfer internal).</p>
+        <div id="spk-groups" class="mt-3 hidden space-y-3"></div>
         <p id="spk-error" class="mt-2 hidden rounded-lg bg-status-alert/10 px-3 py-2 text-sm font-medium text-status-alert"></p>
       </div>
       <div>
@@ -49,9 +54,10 @@ export async function renderAdminNewSuratJalan($container) {
           class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
       </div>
       <div>
-        <label class="mb-1 block text-sm font-medium text-slate-600">Supir (opsional)</label>
-        <select id="driver_id" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
-          <option value="">-- Belum ditentukan --</option>
+        <label class="mb-1 block text-sm font-medium text-slate-600">Supir</label>
+        <select id="driver_id" required
+          class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
+          <option value="" disabled selected>-- Pilih supir --</option>
           ${driverOptions}
         </select>
       </div>
@@ -68,10 +74,10 @@ export async function renderAdminNewSuratJalan($container) {
         </div>
       </div>
       <div>
-        <label class="mb-1 block text-sm font-medium text-slate-600">Pengirim</label>
-        <input id="pengirim" type="text" placeholder="Nama yang serah terima barang"
+        <label class="mb-1 block text-sm font-medium text-slate-600">Penerima (opsional)</label>
+        <input id="penerima" type="text" placeholder="Nama PIC di tujuan"
           class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
-        <p class="mt-1.5 text-xs text-slate-400">Boleh beda dari supir -- ini nama orang yang serah-terima barang.</p>
+        <p class="mt-1.5 text-xs text-slate-400">Bantu supir tahu siapa yang harus dihubungi/diserahi barang di tujuan.</p>
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div id="jumlah-kirim-wrap">
@@ -100,58 +106,89 @@ export async function renderAdminNewSuratJalan($container) {
     </form>
   `);
 
-  let spkLines = []; // [{ penjualan_detail_performa_id, penjualan_jenis, penjualan_qty, sisa }, ...] -- kosong = SJ freeform (bukan dari SPK)
+  let spkGroups = []; // [{ penjualanId, lines: [{penjualan_detail_performa_id, penjualan_jenis, penjualan_qty, sisa}] }, ...]
 
-  async function cekSpk() {
-    const penjualanId = $('#penjualan_id').val().trim();
+  function renderSpkGroups() {
+    const $wrap = $('#spk-groups').empty();
+
+    if (!spkGroups.length) {
+      $wrap.addClass('hidden');
+      $('#jumlah-kirim-wrap').removeClass('hidden');
+      return;
+    }
+    $('#jumlah-kirim-wrap').addClass('hidden');
+
+    spkGroups.forEach((group) => {
+      const $group = $(`
+        <div class="rounded-xl border border-slate-200 p-3">
+          <div class="flex items-center justify-between">
+            <p class="text-sm font-semibold text-ink">SPK ${group.penjualanId}</p>
+            <button type="button" class="btn-hapus-spk text-xs font-medium text-status-alert hover:underline">Hapus</button>
+          </div>
+          <div class="mt-2 space-y-2" data-lines></div>
+        </div>
+      `);
+      const $lines = $group.find('[data-lines]');
+      group.lines.forEach((line) => {
+        $lines.append(`
+          <div class="flex items-center gap-2">
+            <div class="flex-1">
+              <p class="text-sm text-ink">${line.penjualan_jenis || '(tanpa nama)'}</p>
+              <p class="text-xs text-slate-400">Dipesan ${line.penjualan_qty} &middot; sisa ${line.sisa}</p>
+            </div>
+            <input type="number" min="0" max="${line.sisa}" placeholder="0" data-line-id="${line.penjualan_detail_performa_id}"
+              class="item-jumlah-kirim w-20 rounded-lg border border-slate-200 px-2 py-2 text-right text-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
+          </div>
+        `);
+      });
+      $group.find('.btn-hapus-spk').on('click', () => {
+        spkGroups = spkGroups.filter((g) => g.penjualanId !== group.penjualanId);
+        renderSpkGroups();
+      });
+      $wrap.append($group);
+    });
+
+    $wrap.removeClass('hidden');
+  }
+
+  async function addSpkGroup(penjualanId) {
     const $err = $('#spk-error').addClass('hidden');
-    const $itemsWrap = $('#spk-items').addClass('hidden').empty();
-    spkLines = [];
-    $('#jumlah-kirim-wrap').removeClass('hidden');
 
     if (!penjualanId) return;
+    if (spkGroups.some((g) => g.penjualanId === penjualanId)) {
+      $err.text('SPK ini sudah ditambahkan.').removeClass('hidden');
+      return;
+    }
 
-    const $btn = $('#btn-cek-spk');
+    const $btn = $('#btn-tambah-spk');
     setButtonLoading($btn, true, '...');
+    let lines;
     try {
-      spkLines = await api.get(`/admin/sj/spk/${encodeURIComponent(penjualanId)}/items`);
+      lines = await api.get(`/admin/sj/spk/${encodeURIComponent(penjualanId)}/items`);
     } catch (xhr) {
-      spkLines = [];
-      $err.text(xhr?.responseJSON?.message || 'SPK tidak ditemukan.').removeClass('hidden');
       setButtonLoading($btn, false);
+      $err.text(xhr?.responseJSON?.message || 'SPK tidak ditemukan.').removeClass('hidden');
       return;
     }
     setButtonLoading($btn, false);
 
-    if (!spkLines.length) {
+    if (!lines.length) {
       $err.text('SPK ini tidak punya lini produk apa pun.').removeClass('hidden');
       return;
     }
 
-    $('#jumlah-kirim-wrap').addClass('hidden');
-    spkLines.forEach((line, i) => {
-      $itemsWrap.append(`
-        <div class="flex items-center gap-2 rounded-xl border border-slate-200 p-3">
-          <div class="flex-1">
-            <p class="text-sm font-medium text-ink">${line.penjualan_jenis || '(tanpa nama)'}</p>
-            <p class="text-xs text-slate-400">Dipesan ${line.penjualan_qty} &middot; sisa ${line.sisa}</p>
-          </div>
-          <input type="number" min="0" max="${line.sisa}" placeholder="0" data-item-idx="${i}"
-            class="item-jumlah-kirim w-20 rounded-lg border border-slate-200 px-2 py-2 text-right text-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
-        </div>
-      `);
-    });
-    $itemsWrap.removeClass('hidden');
+    spkGroups.push({ penjualanId, lines });
+    $('#penjualan_id').val('');
+    renderSpkGroups();
   }
 
-  $main.find('#btn-cek-spk').on('click', cekSpk);
+  $main.find('#btn-tambah-spk').on('click', () => addSpkGroup($('#penjualan_id').val().trim()));
 
-  // Dititipkan dari tab "SPK" (adminSpkBelumSj.js, tombol "Buat SJ") --
-  // langsung isi & cek nomornya, admin tidak perlu ngetik ulang.
+  // Dititipkan dari tab "SPK" (adminSpkBelumSj.js, tombol "Surat Jalan") --
+  // langsung ditambahkan sebagai grup pertama, admin tidak perlu ngetik ulang.
   const prefillId = consumePrefillPenjualanId();
   if (prefillId) {
-    $('#penjualan_id').val(prefillId);
-    cekSpk();
+    addSpkGroup(prefillId);
   }
 
   let fotoBlob = null;
@@ -175,35 +212,25 @@ export async function renderAdminNewSuratJalan($container) {
     $err.addClass('hidden');
 
     const items = [];
-    if (spkLines.length) {
-      let invalid = false;
-      $main.find('.item-jumlah-kirim').each(function () {
-        const val = Number($(this).val() || 0);
-        if (val <= 0) return;
-        const line = spkLines[Number($(this).data('item-idx'))];
-        if (val > line.sisa) invalid = true;
-        items.push({ penjualan_detail_performa_id: line.penjualan_detail_performa_id, jumlah_kirim: val });
-      });
-      if (invalid) {
-        $err.text('Ada jumlah kirim yang melebihi sisa qty produk itu.').removeClass('hidden');
-        return;
-      }
-      if (!items.length) {
-        $err.text('SPK sudah dicek -- isi jumlah kirim minimal untuk 1 produk, atau kosongkan Nomor SPK untuk SJ tanpa breakdown.').removeClass('hidden');
-        return;
-      }
+    $main.find('.item-jumlah-kirim').each(function () {
+      const val = Number($(this).val() || 0);
+      if (val > 0) items.push({ penjualan_detail_performa_id: Number($(this).data('line-id')), jumlah_kirim: val });
+    });
+
+    if (spkGroups.length && !items.length) {
+      $err.text('Sudah ada SPK ditambahkan -- isi jumlah kirim minimal untuk 1 produk, atau hapus semua SPK untuk SJ tanpa breakdown.').removeClass('hidden');
+      return;
     }
 
     setButtonLoading($btn, true, 'Menyimpan...');
 
     api.post('/admin/sj', {
-      penjualan_id: $('#penjualan_id').val().trim() || undefined,
       items: items.length ? items : undefined,
       tujuan: $('#tujuan').val().trim(),
-      driver_id: $('#driver_id').val() || undefined,
+      driver_id: $('#driver_id').val(),
       kendaraan: $('#kendaraan').val().trim(),
       plat: $('#plat').val().trim(),
-      pengirim: $('#pengirim').val().trim(),
+      penerima: $('#penerima').val().trim(),
       jumlah_kirim: items.length ? undefined : ($('#jumlah_kirim').val() || undefined),
       tgl_kirim: $('#tgl_kirim').val() || undefined,
       catatan: $('#catatan').val().trim(),

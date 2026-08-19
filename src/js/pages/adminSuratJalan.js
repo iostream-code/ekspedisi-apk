@@ -101,17 +101,22 @@ export async function renderAdminSuratJalan($container) {
       const kirimLines = (sj.items || []).length
         ? sj.items.map((it) => `<p>${it.penjualan_jenis || '(tanpa nama)'}: ${it.jumlah_kirim}</p>`).join('')
         : (sj.jumlah_kirim ? `<p>${sj.jumlah_kirim} unit</p>` : '-');
+      // 1 SJ bisa mengangkut lini produk dari lebih dari 1 SPK -- daftar SPK
+      // diturunkan dari items (bukan cuma kolom header penjualan_id, yang
+      // cuma relevan utk SJ trip-linked lama yang selalu 1 SPK).
+      const spkIds = [...new Set((sj.items || []).map((it) => it.penjualan_id).filter(Boolean))];
+      const spkLabel = spkIds.length ? spkIds.join(', ') : sj.penjualan_id;
 
       const $tr = $(`
         <tr>
           <td class="whitespace-nowrap px-3 py-2.5 align-top">
             <p class="font-medium text-ink">${sj.no_surat_jalan || '(belum di-generate)'}</p>
-            <p class="text-xs text-slate-400">${sj.trip_id ? 'dari trip #' + sj.trip_id : 'dibuat manual'}${sj.penjualan_id ? ' &middot; SPK ' + sj.penjualan_id : ''}</p>
+            <p class="text-xs text-slate-400">${sj.trip_id ? 'dari trip #' + sj.trip_id : 'dibuat manual'}${spkLabel ? ' &middot; SPK ' + spkLabel : ''}</p>
           </td>
           <td class="whitespace-nowrap px-3 py-2.5 align-top">
             <p class="text-ink">${sj.tujuan || '-'}</p>
             <p class="text-xs text-slate-400">${sj.nama_supir || 'Belum ada supir'}${sj.kendaraan ? ' &middot; ' + sj.kendaraan : ''}${sj.plat ? ' (' + sj.plat + ')' : ''}</p>
-            ${sj.pengirim ? `<p class="text-xs text-slate-400">Pengirim: ${sj.pengirim}</p>` : ''}
+            ${sj.penerima ? `<p class="text-xs text-slate-400">Penerima: ${sj.penerima}</p>` : ''}
           </td>
           <td class="whitespace-nowrap px-3 py-2.5 align-top text-slate-500">${kirimLines}</td>
           <td class="whitespace-nowrap px-3 py-2.5 align-top text-slate-500">${tgl}${tglKirim ? `<br>kirim ${tglKirim}` : ''}</td>
