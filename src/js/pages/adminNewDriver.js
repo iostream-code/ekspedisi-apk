@@ -5,7 +5,7 @@ import { api } from '../api.js';
 import { navigate } from '../router.js';
 
 export async function renderAdminNewDriver($container) {
-  renderNavbar($container, 'Tambah Supir', { onBack: () => navigate('/admin') });
+  renderNavbar($container, 'Tambah Supir', { onBack: () => navigate('/admin/ekspedisi') });
 
   const $main = $(`<main class="flex-1 p-4"></main>`);
   $container.append($main);
@@ -96,7 +96,7 @@ export async function renderAdminNewDriver($container) {
     setButtonLoading($btn, true, 'Menambahkan...');
     api.post('/admin/drivers', body)
       .then(() => {
-        navigate('/admin');
+        navigate('/admin/ekspedisi');
       })
       .catch((xhr) => {
         const msg = xhr?.responseJSON?.message || 'Gagal menambahkan supir. Coba lagi.';

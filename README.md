@@ -41,20 +41,24 @@ ekspedisi-apk/
         ├── mock.js            # backend palsu in-memory, dipakai saat MOCK_MODE: true
         ├── geo.js             # watchPosition + ping lokasi berkala ke server
         ├── camera.js          # ambil foto: cordova-plugin-camera, fallback <input capture> di browser
+        ├── prefill.js         # state kecil di memori: titip penjualan_id dari tab SPK ke form Buat SJ
         ├── components/
         │   ├── navbar.js       # header + tombol back/logout, dipakai tiap halaman
+        │   ├── adminTabs.js     # tab bar SPK/SJ/Ekspedisi -- cuma di 3 halaman ROOT admin
+        │   ├── tableToolbar.js   # toolbar "Judul (jumlah) + Riwayat/Refresh" di atas <table> (tab SPK & SJ)
         │   └── loader.js       # spinner, page loader, setButtonLoading()
         └── pages/
             ├── login.js
             ├── driverDashboard.js     # status toggle + daftar perjalanan aktif
             ├── driverWorkflow.js      # step wizard 3 checkpoint foto per perjalanan
-            ├── adminDashboard.js      # peta live (Leaflet) + list status, auto-refresh 15 detik
-            ├── adminDriverDetail.js   # riwayat perjalanan & thumbnail foto per supir
+            ├── adminSpkBelumSj.js     # tab "SPK" -- HALAMAN AWAL admin, SPK ready-kirim tanpa SJ + tombol "Buat SJ"
+            ├── adminSuratJalan.js      # tab "SJ" -- daftar surat jalan (modul ekspedisi_t_surat_jalan, skema sendiri)
+            ├── adminNewSuratJalan.js   # bikin surat jalan manual, tidak terikat trip (drill-down dari tab SJ/SPK)
+            ├── adminDashboard.js      # tab "Ekspedisi" -- peta live (Leaflet) + list status, auto-refresh 15 detik
+            ├── adminDriverDetail.js   # riwayat perjalanan & thumbnail foto per supir (drill-down dari tab Ekspedisi)
             ├── adminNewTrip.js         # admin bikin perjalanan baru untuk supir tertentu
             ├── adminNewDriver.js       # admin tambah supir baru -- toggle internal (username pegawai) / eksternal (nama+telepon, opsional ekspedisi)
-            ├── adminSpkKirim.js        # daftar SPK siap kirim (t_penjualan_header) + plot ke supir
-            ├── adminSuratJalan.js      # daftar surat jalan (modul ekspedisi_t_surat_jalan, skema sendiri)
-            └── adminNewSuratJalan.js   # bikin surat jalan manual, tidak terikat trip
+            └── adminSpkKirim.js        # "Plot SPK ke Supir" -- daftar SPK belum diplot + plot ke supir (drill-down dari tab Ekspedisi)
 ```
 
 ## Setup & development
@@ -128,12 +132,17 @@ benar-benar dipanggil `api.js`/pages), dan cocok persis dengan
 | GET | `/admin/ekspedisi` | `adminNewDriver.js` (dropdown perusahaan) | — | `[{ id_expedisi, kode_expedisi, nama_expedisi, pic, no_telp }]` |
 | GET | `/admin/drivers/:id` | `adminDriverDetail.js`, `adminNewTrip.js` | — | `{ id, name, phone, status, trips: [{ id, destination, status_label, created_at, photos: [{ type, url }] }] }` |
 | POST | `/admin/drivers/:id/trip` | `adminNewTrip.js`, `adminSpkKirim.js` | `{ destination, no_surat_jalan?, penjualan_id? }` | `{ ...trip baru }` |
+| POST | `/admin/trips/:id/complete` | `adminDriverDetail.js` (tombol "Tandai Selesai", cuma tampil utk trip aktif supir eksternal) | — | `{ ...trip, status: 'completed' }`, 422 kalau supirnya internal |
 | GET | `/admin/surat-jalan/:no` | `adminNewTrip.js` (tombol "Cek") | — | `{ no_surat_jalan, tanggal, kendaraan, plat, pengirim, valid_cs, client_nama, client_alamat }`, 404 kalau tidak ketemu |
-| GET | `/admin/spk-ready-kirim` | `adminSpkKirim.js` | — | `[{ penjualan_id, no_spk, client_nama, kota_asal, kota_tujuan, penjualan_tanggal_kirim, tgl_cs_deadline, penjualan_total_qty }]` |
-| GET | `/admin/sj` | `adminSuratJalan.js` | query opsional: `status`, `penjualan_id` | `[{ id, no_surat_jalan, trip_id, penjualan_id, driver_id, nama_supir, tujuan, kendaraan, plat, jumlah_kirim, foto_surat_jalan, catatan, status, created_at }]` |
-| POST | `/admin/sj` | `adminNewSuratJalan.js` | `{ tujuan, driver_id?, kendaraan?, plat?, jumlah_kirim?, catatan? }` | 201, `{ ...surat jalan baru, no_surat_jalan auto-generated }` |
+| GET | `/admin/spk-ready-kirim` | `adminSpkKirim.js` (halaman "Plot SPK ke Supir") | — | SPK ready-kirim **belum diplot ke supir** → `[{ penjualan_id, no_spk, client_nama, kota_asal, kota_tujuan, penjualan_tanggal_kirim, tgl_cs_deadline, penjualan_total_qty }]` |
+| GET | `/admin/spk-belum-sj` | `adminSpkBelumSj.js` (tab "SPK", halaman awal admin) | — | SPK ready-kirim **belum ada SJ sama sekali** (kriteria beda dari baris di atas, independen — lihat README `ekspedisi-apk-backend`) → bentuk field sama persis |
+| GET | `/admin/sj/spk/:penjualan_id/items` | `adminNewSuratJalan.js` (tombol "Cek" di field Nomor SPK) | — | `[{ penjualan_detail_performa_id, penjualan_jenis, penjualan_qty, terkirim, sisa }]`, 404 kalau SPK tidak ketemu |
+| GET | `/admin/sj` | `adminSuratJalan.js` | query opsional: `status`, `penjualan_id` | `[{ id, no_surat_jalan, trip_id, penjualan_id, driver_id, nama_supir, tujuan, kendaraan, plat, pengirim, jumlah_kirim, tgl_kirim, items: [{ penjualan_detail_performa_id, penjualan_jenis, jumlah_kirim }], foto_surat_jalan, foto_validasi, divalidasi_oleh, divalidasi_at, nama_validator, catatan, status, created_at }]` |
+| POST | `/admin/sj` | `adminNewSuratJalan.js` | `{ tujuan, driver_id?, kendaraan?, plat?, pengirim?, jumlah_kirim?, tgl_kirim?, catatan?, penjualan_id?, items?: [{ penjualan_detail_performa_id, jumlah_kirim }] }` | 201, `{ ...surat jalan baru, no_surat_jalan auto-generated }`, 422 kalau ada item melebihi sisa qty |
 | GET | `/admin/sj/:id` | (belum dipanggil dari UI) | — | `{ ...detail surat jalan }`, 404 kalau tidak ketemu |
-| PUT | `/admin/sj/:id` | (belum ada UI edit) | field opsional: `tujuan, kendaraan, plat, jumlah_kirim, catatan` | `{ ...surat jalan terupdate }` |
+| PUT | `/admin/sj/:id` | (belum ada UI edit) | field opsional: `tujuan, kendaraan, plat, pengirim, jumlah_kirim, tgl_kirim, catatan` | `{ ...surat jalan terupdate }` |
+| POST | `/admin/sj/:id/photo` | `adminNewSuratJalan.js` (kalau admin ambil foto sebelum submit) | multipart: `photo` | `{ ...surat jalan, status: 'terkirim' }` |
+| POST | `/admin/sj/:id/validasi` | `adminSuratJalan.js` (tombol "Validasi", foto SJ final bertandatangan) | multipart: `photo` | `{ ...surat jalan, status: 'tervalidasi' }`, 422 kalau sudah tervalidasi |
 
 Catatan: `api.js` memaksa logout + redirect ke `#/login` otomatis pada **response 401** di
 request apa pun (GET/POST/upload) — backend harus benar-benar balikin 401 untuk sesi
@@ -158,10 +167,67 @@ lengkap (kapan order masuk daftar ini, kenapa) ada di README `ekspedisi-apk-back
 (punya lampiran `no_surat_jalan` di atas). Dua jalur pembuatan: (1) **otomatis**, terbentuk/
 terlengkapi tiap kali supir upload foto checkpoint bertipe `sj` di `driverWorkflow.js` (baris
 berstatus `terkirim` begitu foto masuk); (2) **manual**, lewat `adminNewSuratJalan.js` — admin
-bikin baris tanpa trip sama sekali (`trip_id: null`), supir opsional, bisa diisi belakangan
-lewat `PUT /admin/sj/:id` (backend siap, UI edit belum ada). Nomor `no_surat_jalan` (format
-`SJ-YYYYMMDD-xxxx`) di-generate otomatis oleh backend setelah insert. Detail penuh (struktur
+bikin baris tanpa trip sama sekali (`trip_id: null`), supir opsional, isi `tujuan`/`kendaraan`/
+`plat`/`pengirim`/`jumlah_kirim`/`tgl_kirim`, foto opsional (tombol "Ambil Foto", `camera.js` —
+diupload lewat `POST /admin/sj/:id/photo` sesaat setelah SJ-nya tersimpan). Field non-foto bisa
+diedit belakangan lewat `PUT /admin/sj/:id` (backend siap, UI edit belum ada). Nomor
+`no_surat_jalan` (format `SJ-YYYYMMDD-xxxx`) di-generate otomatis oleh backend setelah insert —
+sengaja tetap begitu, tidak diketik manual seperti di `surat-jalan-apk`. Detail penuh (struktur
 kolom, FK, alasan skema terpisah) ada di README `ekspedisi-apk-backend`.
+
+**Terikat ke SPK, dengan breakdown per produk** (2026-08-20) — ditelusuri ulang alur input SJ
+asli, ternyata SJ **selalu** melekat ke SPK (`t_penjualan_header`, lewat lini produk
+`t_penjualan_detail_performa`), bukan dokumen lepas seperti asumsi awal. Di form "Buat Surat
+Jalan", isi "Nomor SPK" lalu klik "Cek" (`GET /admin/sj/spk/:id/items`) — kalau ketemu, tampil
+daftar lini produk SPK itu (nama produk, qty dipesan, sisa yang belum terkirim dari SEMUA
+sumber — SJ lama `surat-jalan-apk` maupun SJ baru app ini) dengan input jumlah kirim per lini
+(dibatasi `max` ke sisa qty, dobel-dicek lagi di server saat submit). Field "Jumlah kirim" flat
+disembunyikan begitu ada breakdown lini produk — nilainya dihitung otomatis dari total item.
+Kosongkan "Nomor SPK" untuk tetap bisa bikin SJ lepas (mis. sampel/transfer internal) dengan
+jumlah kirim manual seperti sebelumnya. Breakdown per SJ ditampilkan juga di kolom "Kirim" pada
+tabel `adminSuratJalan.js`. Detail lengkap (kenapa tabel item terpisah, kenapa sisa qty dihitung
+lintas 2 sumber) ada di README `ekspedisi-apk-backend`.
+
+**Entry point dari tab "SPK"** (2026-08-20) — tombol "Buat SJ" di `adminSpkBelumSj.js` (lihat
+bagian Routing di bawah) nitip `penjualan_id` yang dipilih lewat `prefill.js` (state kecil di
+memori, bukan query string — `router.js` hash-based belum dukung itu) sebelum `navigate('/admin/sj/new')`
+— begitu form "Buat Surat Jalan" render, `consumePrefillPenjualanId()` langsung isi field "Nomor
+SPK" & jalankan "Cek" otomatis, admin tidak perlu ketik ulang.
+
+**Alur validasi** (2026-08-19) — memodelkan proses fisik: SJ dibawa supir → ditandatangani
+penerima saat barang diterima → dibawa balik ke admin → admin foto dokumen final itu. Tombol
+"Validasi" (kolom "Aksi") muncul di `adminSuratJalan.js` untuk tiap SJ yang belum `tervalidasi`
+(status manapun — `draft` atau `terkirim`) — klik, ambil foto (`camera.js`), langsung
+`uploadFile` ke `POST /admin/sj/:id/validasi`. Begitu sukses, badge status berubah jadi
+"Tervalidasi", foto final ditampilkan (border teal, beda dari foto checkpoint biasa), dan
+tombolnya hilang — SJ yang sudah tervalidasi tidak bisa divalidasi ulang (backend menolak 422).
+Detail penuh (kenapa 3 status, kenapa foto checkpoint & foto validasi disimpan terpisah) ada di
+README `ekspedisi-apk-backend`.
+
+**Model tabel + toolbar Refresh/Riwayat** (2026-08-20) — tab "SPK" (`adminSpkBelumSj.js`) & "SJ"
+(`adminSuratJalan.js`) dirombak dari kartu ke `<table>`, meniru pola card-header di
+`surat-jalan-apk` (judul + jumlah baris + ikon refresh/riwayat di toolbar gelap di atas tabel —
+lihat `pages/surat_jalan.html` di sana), disesuaikan ke sistem desain Tailwind app ini lewat
+`components/tableToolbar.js`. Tombol **Riwayat** toggle (bukan popup terpisah — app ini belum
+punya komponen modal) antara daftar aktif & mode riwayat, data yang sama di-refetch/filter ulang:
+- Tab SPK: aktif = `GET /admin/spk-belum-sj`; riwayat = `GET /admin/sj` difilter client-side ke
+  baris yang `penjualan_id`-nya terisi (SPK yang sudah dibuatkan SJ, hilang dari daftar aktif).
+- Tab SJ: aktif = semua status tercampur (`GET /admin/sj` apa adanya, memang tujuan utama tab
+  ini); riwayat = difilter client-side ke `status === 'tervalidasi'` saja.
+
+Tombol **Refresh** cuma re-fetch & re-render mode yang sedang aktif (tidak reset ke mode
+default). Kedua halaman full re-render tiap toggle/refresh (bukan patch DOM parsial) — konsisten
+dengan pola `adminDashboard.js` yang sudah ada.
+
+**Penyesuaian toolbar (2026-08-20):** judul toolbar (`components/tableToolbar.js`) tetap literal
+**"Data | \<jumlah\>"** di semua halaman tabel (persis pola `<h3>Data | ...</h3>` di
+`surat-jalan-apk`, tidak dibedakan per mode/halaman lagi). Tombol tambah (`+ Buat SJ`, cuma ada
+di tab SJ — tab SPK tidak punya, SPK datang dari `backend-production` bukan dibuat di sini)
+dipindah dari tombol lebar penuh di atas tabel ke dalam toolbar (`addLabel`/`onAdd`,
+opsional — komponennya cuma render tombol itu kalau `addLabel` diisi). Semua sel `<th>`/`<td>`
+di kedua tabel dikasih `whitespace-nowrap` (konten tidak pernah wrap, tabel scroll horizontal
+lewat `overflow-x-auto` di wrapper-nya kalau kepanjangan) — sama seperti kolom-kolom sempit
+fixed-width di tabel `surat-jalan-apk`.
 
 ## Routing & role guard
 
@@ -172,13 +238,22 @@ kolom, FK, alasan skema terpisah) ada di README `ekspedisi-apk-backend`.
 | `#/login` | `login.js` | publik |
 | `#/driver` | `driverDashboard.js` | `driver` |
 | `#/driver/trip/:tripId` | `driverWorkflow.js` | `driver` |
-| `#/admin` | `adminDashboard.js` | `admin` |
+| `#/admin` | `adminSpkBelumSj.js` | `admin` — **tab "SPK", halaman awal admin** setelah login (juga home role-mismatch redirect, lihat di bawah) |
+| `#/admin/ekspedisi` | `adminDashboard.js` | `admin` — tab "Ekspedisi" |
+| `#/admin/sj` | `adminSuratJalan.js` | `admin` — tab "SJ" |
 | `#/admin/driver/new` | `adminNewDriver.js` | `admin` — **wajib didaftarkan sebelum** `:driverId` di bawah (lihat komentar `main.js`), kalau tidak `new` akan ketangkep sebagai `:driverId` |
 | `#/admin/driver/:driverId` | `adminDriverDetail.js` | `admin` |
 | `#/admin/driver/:driverId/trip/new` | `adminNewTrip.js` | `admin` |
-| `#/admin/spk-kirim` | `adminSpkKirim.js` | `admin` |
+| `#/admin/spk-kirim` | `adminSpkKirim.js` ("Plot SPK ke Supir") | `admin` |
 | `#/admin/sj/new` | `adminNewSuratJalan.js` | `admin` — didaftarkan sebelum `/admin/sj` di `main.js`, mengikuti pola `driver/new` |
-| `#/admin/sj` | `adminSuratJalan.js` | `admin` |
+
+**Tab bar SPK/SJ/Ekspedisi** (`components/adminTabs.js`) dipasang cuma di 3 halaman ROOT
+(`adminSpkBelumSj.js`/`adminSuratJalan.js`/`adminDashboard.js`) — tab tidak aktif abu-abu
+(`bg-slate-100 text-slate-500`), tab aktif teal (`bg-brand-600 text-white`). Navbar (`navbar.js`)
+di ketiganya judulnya **konstan "Ekspedisi"** (identitas app, bukan judul per-halaman) — tanpa
+tombol back, karena berpindah tab bukan "kembali". Halaman drill-down (detail supir, tambah
+supir, perjalanan baru, buat SJ, plot SPK) TIDAK pakai tab bar — itu tetap navbar biasa dengan
+judul spesifik + tombol back ke tab root asalnya.
 
 `router.js` redirect ke `#/login` kalau belum `isAuthenticated()`, dan redirect ke home
 role masing-masing (`#/admin` atau `#/driver`) kalau role tidak cocok dengan `roles` route
@@ -247,8 +322,10 @@ dan `<author email="dev@example.com">` masih nilai default template.
 - Manajemen supir dari sisi admin baru sebatas **tambah** (`adminNewDriver.js`) — belum ada
   edit/nonaktifkan/hapus profil supir dari app (harus manual lewat DB kalau perlu).
 - **Supir eksternal tidak bisa login ke app ini sama sekali** (tidak ada akun) — jadi checkpoint
-  foto (`berangkat`/`serah_terima`/`sj`) tidak relevan utk trip tipe ini, dan belum ada cara di
-  UI utk menandai trip eksternal selesai tanpa checkpoint foto. Masih gap terbuka.
+  foto (`berangkat`/`serah_terima`/`sj`) tidak relevan utk trip tipe ini. **Sudah ada jalan
+  keluarnya (2026-08-19):** tombol "Tandai Selesai" di `adminDriverDetail.js`, tampil khusus
+  utk trip aktif milik supir eksternal, panggil `POST /admin/trips/:id/complete` — detail
+  keputusan (kenapa ditolak utk supir internal) ada di README `ekspedisi-apk-backend`.
 - **Pengajuan biaya ke finance** — backend (`POST`/`GET /admin/trips/{trip}/pengajuan-biaya`)
   sudah siap, tapi belum ada form/tombol di `ekspedisi-apk` utk memakainya, dan belum ada
   approve/reject dari sisi finance sama sekali (siapa berperan sebagai finance juga belum

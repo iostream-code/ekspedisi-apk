@@ -1,12 +1,12 @@
 import $ from 'jquery';
 import { renderNavbar } from '../components/navbar.js';
-import { pageLoaderHtml, emptyStateHtml } from '../components/loader.js';
+import { pageLoaderHtml, emptyStateHtml, setButtonLoading } from '../components/loader.js';
 import { api } from '../api.js';
 import { navigate } from '../router.js';
 
 export async function renderAdminDriverDetail($container, params) {
   const driverId = params.driverId;
-  renderNavbar($container, 'Detail Supir', { onBack: () => navigate('/admin') });
+  renderNavbar($container, 'Detail Supir', { onBack: () => navigate('/admin/ekspedisi') });
 
   const $main = $(`<main class="flex-1 p-4">${pageLoaderHtml('Memuat detail supir...')}</main>`);
   $container.append($main);
@@ -62,6 +62,25 @@ export async function renderAdminDriverDetail($container, params) {
     });
     if (!(trip.photos || []).length) {
       $photos.append('<p class="text-xs text-slate-400">Belum ada foto checkpoint.</p>');
+    }
+    // Supir eksternal tidak punya akun -> tidak bisa checkpoint foto/selesai
+    // sendiri lewat app. Satu-satunya jalan: admin tandai manual di sini.
+    if (isActive && detail.tipe === 'eksternal') {
+      const $btn = $(`<button class="btn-ghost mt-3 w-full !py-2.5 text-sm">Tandai Selesai</button>`);
+      $btn.on('click', function () {
+        if (!confirm('Tandai perjalanan ini sebagai selesai? Supir eksternal tidak bisa membatalkan ini sendiri.')) return;
+        setButtonLoading($btn, true, 'Menyimpan...');
+        api.post(`/admin/trips/${trip.id}/complete`, {})
+          .then(() => {
+            $card.find('span.rounded-full').removeClass('bg-status-online/10 text-status-online').addClass('bg-slate-100 text-slate-600').text('Selesai');
+            $btn.remove();
+          })
+          .catch((xhr) => {
+            alert(xhr?.responseJSON?.message || 'Gagal menandai perjalanan selesai. Coba lagi.');
+            setButtonLoading($btn, false);
+          });
+      });
+      $card.append($btn);
     }
     $tripList.append($card);
   });

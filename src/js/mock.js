@@ -37,8 +37,9 @@ const store = {
     {
       id: 1, no_surat_jalan: 'SJ-20260819-0001', trip_id: 101, penjualan_id: null,
       driver_id: 1, nama_supir: 'Budi Santoso', tujuan: 'Gudang Sidoarjo -> Toko Makmur Jaya',
-      kendaraan: null, plat: null, jumlah_kirim: null, foto_surat_jalan: null,
-      catatan: null, status: 'draft', created_at: new Date().toISOString(),
+      kendaraan: null, plat: null, pengirim: null, jumlah_kirim: null, tgl_kirim: null,
+      foto_surat_jalan: null, foto_validasi: null, divalidasi_oleh: null, divalidasi_at: null,
+      nama_validator: null, items: [], catatan: null, status: 'draft', created_at: new Date().toISOString(),
     },
   ],
 };
@@ -66,6 +67,8 @@ function seedTrip(driverId, destination, noSuratJalan = null, penjualanId = null
 }
 seedTrip(1, 'Gudang Sidoarjo -> Toko Makmur Jaya', 'SJ_000811');
 seedTrip(1, 'Gudang Sidoarjo -> Toko Sumber Rejeki');
+// Supir eksternal (id 5) tidak bisa checkpoint foto -- dipakai buat demo tombol "Tandai Selesai".
+seedTrip(5, 'Gudang Sidoarjo -> Gudang Ekspedisi Jaya Surabaya');
 
 // Dummy data SJ buat demo lookup GET /admin/surat-jalan/:no (lihat SuratJalanLookup
 // di driver-apk-backend -- bentuk field SAMA PERSIS dengan response asli).
@@ -82,6 +85,21 @@ const DUMMY_SPK_READY_KIRIM = [
   { penjualan_id: 'INV_01701-5', no_spk: '01701', client_nama: 'DGI', kota_asal: 'Pusat', kota_tujuan: 'KOTA JAKARTA TIMUR', penjualan_tanggal_kirim: '2026-08-25' },
   { penjualan_id: 'INV_01806-1', no_spk: '01806', client_nama: 'Alisha Rafina', kota_asal: 'Pusat', kota_tujuan: 'KOTA DENPASAR', penjualan_tanggal_kirim: '2026-08-27' },
 ];
+
+// Dummy lini produk per SPK buat demo GET /admin/sj/spk/:id/items (lihat
+// App\Support\PenjualanItemLookup di driver-apk-backend -- bentuk field sama
+// persis). `sisa` berkurang tiap kali SJ dibuat dengan items menyentuh lini
+// ini (lihat handler POST /admin/sj di bawah), supaya validasi sisa qty
+// kelihatan nyata waktu demo.
+const DUMMY_PENJUALAN_ITEMS = {
+  'INV_01701-5': [
+    { penjualan_detail_performa_id: 501, penjualan_jenis: 'Koper Cabin 20"', penjualan_qty: 50, terkirim: 10, sisa: 40 },
+    { penjualan_detail_performa_id: 502, penjualan_jenis: 'Koper Medium 24"', penjualan_qty: 30, terkirim: 0, sisa: 30 },
+  ],
+  'INV_01806-1': [
+    { penjualan_detail_performa_id: 503, penjualan_jenis: 'Tas Ransel', penjualan_qty: 20, terkirim: 20, sisa: 0 },
+  ],
+};
 
 function nextStepLabel(trip) {
   const next = STEPS.find((s) => !trip.completed_steps.includes(s));
@@ -174,7 +192,14 @@ export function mockRequest(path, method, data) {
           tujuan: trip.destination || null,
           kendaraan: null,
           plat: null,
+          pengirim: null,
           jumlah_kirim: null,
+          tgl_kirim: null,
+          foto_validasi: null,
+          divalidasi_oleh: null,
+          divalidasi_at: null,
+          nama_validator: null,
+          items: [],
           catatan: null,
           created_at: new Date().toISOString(),
         };
@@ -182,7 +207,8 @@ export function mockRequest(path, method, data) {
         store.suratJalan.push(sj);
       }
       sj.foto_surat_jalan = null; // mock: tidak simpan blob foto sungguhan, cukup tandai terkirim
-      sj.status = 'terkirim';
+      // Checkpoint lapangan tidak boleh menurunkan status yang sudah tervalidasi.
+      if (sj.status !== 'tervalidasi') sj.status = 'terkirim';
     }
 
     return delay({ ok: true, completed_steps: trip.completed_steps });
@@ -194,6 +220,22 @@ export function mockRequest(path, method, data) {
     const trip = store.trips[m[1]];
     trip.status = 'completed';
     return delay(formatTrip(trip));
+  }
+
+  // POST /admin/trips/:id/complete -> admin tandai manual (supir eksternal, tidak bisa checkpoint sendiri)
+  m = path.match(/^\/admin\/trips\/(\d+)\/complete$/);
+  if (method === 'POST' && m) {
+    const trip = store.trips[m[1]];
+    const driver = trip ? store.drivers.find((d) => d.id === trip.driver_id) : null;
+    const deferred = $.Deferred();
+    setTimeout(() => {
+      if (!trip) { deferred.reject({ responseJSON: { message: 'Perjalanan tidak ditemukan.' } }); return; }
+      if (!driver || driver.tipe !== 'eksternal') { deferred.reject({ responseJSON: { message: 'Supir internal wajib menyelesaikan checkpoint foto lewat app, tidak bisa ditandai selesai manual dari admin.' } }); return; }
+      if (trip.status === 'completed') { deferred.reject({ responseJSON: { message: 'Perjalanan ini sudah selesai.' } }); return; }
+      trip.status = 'completed';
+      deferred.resolve(formatTrip(trip));
+    }, 350);
+    return deferred.promise();
   }
 
   // GET /admin/drivers
@@ -232,20 +274,58 @@ export function mockRequest(path, method, data) {
     return delay([...store.suratJalan].sort((a, b) => b.id - a.id), 300);
   }
 
-  // POST /admin/sj -> bikin surat jalan manual dari admin
+  // GET /admin/sj/spk/:penjualan_id/items -> lini produk 1 SPK + sisa qty (lihat PenjualanItemLookup)
+  m = path.match(/^\/admin\/sj\/spk\/([^/]+)\/items$/);
+  if (method === 'GET' && m) {
+    const lines = DUMMY_PENJUALAN_ITEMS[decodeURIComponent(m[1])];
+    const deferred = $.Deferred();
+    setTimeout(() => {
+      if (lines) deferred.resolve(lines.map((l) => ({ ...l })));
+      else deferred.reject({ responseJSON: { message: 'SPK/penjualan_id tidak ditemukan, cek lagi penulisannya.' } });
+    }, 300);
+    return deferred.promise();
+  }
+
+  // POST /admin/sj -> bikin surat jalan manual dari admin, items opsional (breakdown per lini SPK)
   if (method === 'POST' && path === '/admin/sj') {
     const driver = data.driver_id ? store.drivers.find((d) => d.id === Number(data.driver_id)) : null;
+    const lines = data.penjualan_id ? DUMMY_PENJUALAN_ITEMS[data.penjualan_id] : null;
+    const items = (data.items && lines)
+      ? data.items.map((it) => {
+        const line = lines.find((l) => l.penjualan_detail_performa_id === Number(it.penjualan_detail_performa_id));
+        if (line) {
+          // Kurangi sisa dummy supaya validasi kelihatan nyata kalau dicek lagi/dikirim lagi.
+          line.terkirim += Number(it.jumlah_kirim);
+          line.sisa = Math.max(0, line.penjualan_qty - line.terkirim);
+        }
+        return {
+          id: Math.random(),
+          penjualan_detail_performa_id: Number(it.penjualan_detail_performa_id),
+          jumlah_kirim: Number(it.jumlah_kirim),
+          penjualan_jenis: line ? line.penjualan_jenis : null,
+        };
+      })
+      : [];
+    const jumlahKirim = items.length ? items.reduce((sum, it) => sum + it.jumlah_kirim, 0) : (data.jumlah_kirim ? Number(data.jumlah_kirim) : null);
+
     const sj = {
       id: store.nextSjId++,
       trip_id: null,
-      penjualan_id: null,
+      penjualan_id: data.penjualan_id || null,
       driver_id: driver ? driver.id : null,
       nama_supir: driver ? driver.name : null,
       tujuan: data.tujuan || null,
       kendaraan: data.kendaraan || null,
       plat: data.plat || null,
-      jumlah_kirim: data.jumlah_kirim ? Number(data.jumlah_kirim) : null,
+      pengirim: data.pengirim || null,
+      jumlah_kirim: jumlahKirim,
+      tgl_kirim: data.tgl_kirim || null,
+      items,
       foto_surat_jalan: null,
+      foto_validasi: null,
+      divalidasi_oleh: null,
+      divalidasi_at: null,
+      nama_validator: null,
       catatan: data.catatan || null,
       status: 'draft',
       created_at: new Date().toISOString(),
@@ -253,6 +333,34 @@ export function mockRequest(path, method, data) {
     sj.no_surat_jalan = `SJ-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(sj.id).padStart(4, '0')}`;
     store.suratJalan.push(sj);
     return delay(sj, 400);
+  }
+
+  // POST /admin/sj/:id/photo -> lampirkan foto ke SJ (mis. dari form manual admin)
+  m = path.match(/^\/admin\/sj\/(\d+)\/photo$/);
+  if (method === 'POST' && m) {
+    const sj = store.suratJalan.find((s) => s.id === Number(m[1]));
+    if (sj) {
+      sj.foto_surat_jalan = null; // mock: tidak simpan blob foto sungguhan, cukup tandai terkirim
+      if (sj.status !== 'tervalidasi') sj.status = 'terkirim';
+    }
+    return delay(sj, 400);
+  }
+
+  // POST /admin/sj/:id/validasi -> admin upload foto SJ final bertandatangan, tutup alur validasi
+  m = path.match(/^\/admin\/sj\/(\d+)\/validasi$/);
+  if (method === 'POST' && m) {
+    const sj = store.suratJalan.find((s) => s.id === Number(m[1]));
+    const deferred = $.Deferred();
+    setTimeout(() => {
+      if (!sj) { deferred.reject({ responseJSON: { message: 'Surat jalan tidak ditemukan.' } }); return; }
+      if (sj.status === 'tervalidasi') { deferred.reject({ responseJSON: { message: 'Surat jalan ini sudah tervalidasi.' } }); return; }
+      sj.foto_validasi = null; // mock: tidak simpan blob foto sungguhan
+      sj.status = 'tervalidasi';
+      sj.nama_validator = 'Admin Dispatcher';
+      sj.divalidasi_at = new Date().toISOString();
+      deferred.resolve(sj);
+    }, 400);
+    return deferred.promise();
   }
 
   // GET /admin/drivers/:id
@@ -280,6 +388,13 @@ export function mockRequest(path, method, data) {
   // GET /admin/spk-ready-kirim -> daftar SPK siap diplot (lihat SpkReadyKirim di driver-apk-backend)
   if (method === 'GET' && path === '/admin/spk-ready-kirim') {
     return delay(DUMMY_SPK_READY_KIRIM, 300);
+  }
+
+  // GET /admin/spk-belum-sj -> tab "SPK" -- SPK ready-kirim yang belum ada SJ sama sekali
+  // (kriteria beda dari spk-ready-kirim di atas, lihat SpkReadyKirim::listBelumSj())
+  if (method === 'GET' && path === '/admin/spk-belum-sj') {
+    const spkYangSudahAdaSj = new Set(store.suratJalan.map((sj) => sj.penjualan_id).filter(Boolean));
+    return delay(DUMMY_SPK_READY_KIRIM.filter((spk) => !spkYangSudahAdaSj.has(spk.penjualan_id)), 300);
   }
 
   // GET /admin/surat-jalan/:no  -> cek nomor SJ asli (lihat SuratJalanLookup di driver-apk-backend)

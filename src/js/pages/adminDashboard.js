@@ -2,6 +2,7 @@ import $ from 'jquery';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { renderNavbar } from '../components/navbar.js';
+import { renderAdminTabs } from '../components/adminTabs.js';
 import { pageLoaderHtml } from '../components/loader.js';
 import { api } from '../api.js';
 
@@ -9,7 +10,8 @@ const STATUS_COLOR = { online: '#16A34A', resting: '#D97706', offline: '#64748B'
 let refreshTimer = null;
 
 export async function renderAdminDashboard($container) {
-  renderNavbar($container, 'Monitor Supir');
+  renderNavbar($container, 'Ekspedisi');
+  renderAdminTabs($container, 'ekspedisi');
 
   const $main = $(`<main class="flex flex-1 items-center justify-center">${pageLoaderHtml('Memuat data supir...')}</main>`);
   $container.append($main);
@@ -17,14 +19,9 @@ export async function renderAdminDashboard($container) {
   $main.removeClass('items-center justify-center').addClass('flex-col md:flex-row').html(`
     <div id="admin-map" class="h-64 w-full md:h-auto md:flex-1"></div>
     <aside class="w-full space-y-2 overflow-y-auto border-t border-slate-200 bg-white p-3 md:w-80 md:border-l md:border-t-0">
-      <div class="grid grid-cols-2 gap-2">
-        <a href="#/admin/spk-kirim" class="flex items-center justify-center rounded-xl bg-route/10 px-3 py-2.5 text-route hover:bg-route/15">
-          <span class="text-sm font-semibold">SPK</span>
-        </a>
-        <a href="#/admin/sj" class="flex items-center justify-center rounded-xl bg-brand-50 px-3 py-2.5 text-brand-700 hover:bg-brand-100">
-          <span class="text-sm font-semibold">SJ</span>
-        </a>
-      </div>
+      <a href="#/admin/spk-kirim" class="flex items-center justify-center rounded-xl bg-route/10 px-3 py-2.5 text-route hover:bg-route/15">
+        <span class="text-sm font-semibold">Plot SPK ke Supir</span>
+      </a>
       <div class="flex items-center justify-between px-1 pt-1">
         <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Daftar Supir</p>
         <a href="#/admin/driver/new" class="text-xs font-semibold text-brand-600 hover:text-brand-700">+ Tambah Supir</a>

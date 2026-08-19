@@ -12,7 +12,7 @@ import { navigate } from '../router.js';
  * createTrip() di driver-apk-backend).
  */
 export async function renderAdminSpkKirim($container) {
-  renderNavbar($container, 'SPK Siap Kirim', { onBack: () => navigate('/admin') });
+  renderNavbar($container, 'Plot SPK ke Supir', { onBack: () => navigate('/admin/ekspedisi') });
 
   const $main = $(`<main class="flex-1 space-y-3 p-4">${pageLoaderHtml('Memuat data...')}</main>`);
   $container.append($main);

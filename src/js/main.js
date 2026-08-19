@@ -7,6 +7,7 @@ import { renderAdminDriverDetail } from './pages/adminDriverDetail.js';
 import { renderAdminNewTrip } from './pages/adminNewTrip.js';
 import { renderAdminNewDriver } from './pages/adminNewDriver.js';
 import { renderAdminSpkKirim } from './pages/adminSpkKirim.js';
+import { renderAdminSpkBelumSj } from './pages/adminSpkBelumSj.js';
 import { renderAdminSuratJalan } from './pages/adminSuratJalan.js';
 import { renderAdminNewSuratJalan } from './pages/adminNewSuratJalan.js';
 import { APP_CONFIG } from './config.js';
@@ -15,7 +16,10 @@ import { login, isAuthenticated } from './auth.js';
 registerRoute('/login', renderLogin, { public: true });
 registerRoute('/driver', renderDriverDashboard, { roles: ['driver'] });
 registerRoute('/driver/trip/:tripId', renderDriverWorkflow, { roles: ['driver'] });
-registerRoute('/admin', renderAdminDashboard, { roles: ['admin'] });
+// Tab "SPK" -- halaman awal admin setelah login (lihat komponen adminTabs.js
+// utk tab bar SPK/SJ/Ekspedisi yang dipasang di 3 halaman root ini).
+registerRoute('/admin', renderAdminSpkBelumSj, { roles: ['admin'] });
+registerRoute('/admin/ekspedisi', renderAdminDashboard, { roles: ['admin'] });
 // WAJIB didaftarkan SEBELUM '/admin/driver/:driverId' -- router.js first-match-wins,
 // dan pattern :driverId juga akan "menangkap" literal 'new' sebagai id kalau urutannya kebalik.
 registerRoute('/admin/driver/new', renderAdminNewDriver, { roles: ['admin'] });
