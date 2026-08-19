@@ -19,7 +19,7 @@ const SJ_STATUS_LABEL = { draft: 'Draft', terkirim: 'Terkirim', tervalidasi: 'Te
  *   SEKALI (beda dari "SPK Siap Kirim" di tab Ekspedisi, yang kriterianya
  *   "belum diplot ke supir" -- 2 hal independen, lihat
  *   App\Support\SpkReadyKirim::listBelumSj() di ekspedisi-apk-backend). Aksi
- *   per baris cuma "Buat SJ" -- plotting ke supir ada di tab Ekspedisi.
+ *   per baris cuma "Surat Jalan" -- plotting ke supir ada di tab Ekspedisi.
  * - Riwayat: SPK yang SUDAH ada SJ-nya -- diturunkan dari GET /admin/sj
  *   (filter baris yang penjualan_id-nya terisi), tidak ada endpoint baru
  *   khusus krn datanya sudah tersedia dari situ.
@@ -104,7 +104,7 @@ export async function renderAdminSpkBelumSj($container) {
             <td class="whitespace-nowrap px-3 py-2.5 text-slate-500">${row.kota_tujuan || '-'}</td>
             <td class="whitespace-nowrap px-3 py-2.5 text-slate-500">${row.no_spk || '-'}</td>
             <td class="whitespace-nowrap px-3 py-2.5 text-slate-500">${tglKirim}</td>
-            <td class="whitespace-nowrap px-3 py-2.5 text-right"><button class="btn-buat-sj rounded-lg bg-route px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90">Buat SJ</button></td>
+            <td class="whitespace-nowrap px-3 py-2.5 text-right"><button class="btn-buat-sj rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-200">Surat Jalan</button></td>
           </tr>
         `);
         $tr.find('.btn-buat-sj').on('click', () => {
