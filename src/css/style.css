@@ -59,3 +59,37 @@
   .route-step.done .route-marker { @apply border-brand-600 bg-brand-600 text-white; }
   .route-step.active .route-marker { @apply border-route bg-route text-white; }
 }
+
+/* Connection indicator di topbar (paling kiri) -- pola & animasi SAMA PERSIS
+   dengan .connection-indicator/#box_internet di app lain workspace ini
+   (surat-jalan-apk, produksi-apk), lihat connection.js utk logic online/offline-nya. */
+.connection-indicator {
+  flex-shrink: 0;
+  margin-right: 10px;
+  width: 12px;
+  height: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+  position: relative;
+  transition: all 0.3s ease;
+}
+.connection-indicator.connected {
+  background-color: #00ff00;
+  box-shadow: 0 0 8px #00ff00, 0 0 16px #00ff00;
+  animation: pulse-green 2s ease-in-out infinite;
+  border: none;
+}
+.connection-indicator.disconnected {
+  background-color: #ff0000;
+  box-shadow: 0 0 8px #ff0000, 0 0 16px #ff0000;
+  animation: pulse-red 1s ease-in-out infinite;
+  border: none;
+}
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; box-shadow: 0 0 8px #00ff00, 0 0 16px #00ff00; }
+  50% { opacity: 0.6; box-shadow: 0 0 4px #00ff00, 0 0 8px #00ff00; }
+}
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; box-shadow: 0 0 8px #ff0000, 0 0 16px #ff0000; }
+  50% { opacity: 0.4; box-shadow: 0 0 4px #ff0000, 0 0 8px #ff0000; }
+}

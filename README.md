@@ -27,8 +27,9 @@ style tapi routing client-side via hash router custom (`src/js/router.js`) — b
 ekspedisi-apk/
 ├── config.xml            # konfigurasi Cordova (id app, permission, plugin native)
 ├── vite.config.js         # build src/ -> www/ (base:'' wajib utk file:// di WebView)
-├── tailwind.config.js      # palet warna: brand (teal), route (orange CTA), status (dot supir)
-├── res/public/             # disalin apa adanya ke www/ oleh Vite (kosong saat ini — belum ada ikon/splash)
+├── tailwind.config.js      # palet warna: brand (hijau), route (orange CTA), status (dot supir)
+├── res/public/             # disalin apa adanya ke www/ oleh Vite -- isinya cuma logo_koperindo.jpeg
+│                            # (dipakai login.js) saat ini, belum ada ikon/splash app
 └── src/
     ├── index.html
     ├── css/style.css
@@ -42,8 +43,9 @@ ekspedisi-apk/
         ├── geo.js             # watchPosition + ping lokasi berkala ke server
         ├── camera.js          # ambil foto: cordova-plugin-camera, fallback <input capture> di browser
         ├── prefill.js         # state kecil di memori: titip penjualan_id dari tab SPK ke form Buat SJ
+        ├── connection.js       # indikator online/offline di topbar (navigator.onLine + event online/offline)
         ├── components/
-        │   ├── navbar.js       # header + tombol back/logout, dipakai tiap halaman
+        │   ├── navbar.js       # header hijau + connection-indicator + tombol back/logout, dipakai tiap halaman
         │   ├── adminTabs.js     # tab bar SPK/SJ/Ekspedisi -- cuma di 3 halaman ROOT admin
         │   ├── tableToolbar.js   # toolbar "Judul (jumlah) + Riwayat/Refresh" di atas <table> (tab SPK & SJ)
         │   └── loader.js       # spinner, page loader, setButtonLoading()
@@ -60,6 +62,29 @@ ekspedisi-apk/
             ├── adminNewDriver.js       # admin tambah supir baru -- toggle internal (username pegawai) / eksternal (nama+telepon, opsional ekspedisi)
             └── adminSpkKirim.js        # "Plot SPK ke Supir" -- daftar SPK belum diplot + plot ke supir (drill-down dari tab Ekspedisi)
 ```
+
+## Tema, topbar, & connection indicator (2026-08-20)
+
+- **Warna brand jadi hijau** (`tailwind.config.js`, sebelumnya teal) — `brand-600` (`#16A34A`)
+  sengaja SAMA PERSIS dgn `status.online` (dot supir online) — app ini soal ekspedisi/logistik,
+  hijau "jalan/aktif" jadi identitas & status sekaligus. `route` (orange, CTA kritikal kayak
+  ambil foto) tidak berubah, tetap dipasangkan dgn brand hijau.
+- **Topbar** (`navbar.js`) — dari putih/`bg-white` jadi solid `bg-brand-600`, teks & ikon
+  (back/logout) jadi putih. Dipakai di SEMUA halaman (bukan cuma tab admin) krn `renderNavbar()`
+  cuma 1 komponen shared.
+- **Connection indicator** (`connection.js` + CSS di `style.css`) — bulat kecil kedip di topbar
+  **paling kiri**, sebelum tombol back/judul. Meniru PERSIS pola visual & animasi
+  `.connection-indicator`/`#box_internet` yang sudah ada di app lain workspace ini
+  (`surat-jalan-apk`, `produksi-apk` — dashed border putih saat idle, glow hijau `#00ff00`
+  berdenyut pelan saat `connected`, glow merah `#ff0000` berdenyut cepat saat `disconnected`).
+  **Beda cara deteksinya**: app Framework7 lama itu ping endpoint `/check-internet-sj` tiap saat
+  (sekalian cek versi app & password) — `ekspedisi-apk-backend` tidak punya endpoint semacam
+  itu, jadi di sini cukup `navigator.onLine` + event `online`/`offline` browser (WebView Cordova
+  sudah cukup akurat lewat itu). Listener dipasang SEKALI di level module (bukan tiap render
+  navbar) — tiap event fire, cari elemen `#connection-indicator` yang SEDANG ada di DOM.
+- **Logo login** (`login.js`) — ikon placeholder (truk generik) diganti foto asli
+  `res/public/logo_koperindo.jpeg` (ditambahkan manual, disalin Vite apa adanya ke `www/` krn
+  ada di `publicDir`, direferensikan relatif `logo_koperindo.jpeg` dari halaman).
 
 ## Setup & development
 
@@ -268,7 +293,7 @@ fixed-width di tabel `surat-jalan-apk`.
 
 **Tab bar SPK/SJ/Ekspedisi** (`components/adminTabs.js`) dipasang cuma di 3 halaman ROOT
 (`adminSpkBelumSj.js`/`adminSuratJalan.js`/`adminDashboard.js`) — tab tidak aktif abu-abu
-(`bg-slate-100 text-slate-500`), tab aktif teal (`bg-brand-600 text-white`). Navbar (`navbar.js`)
+(`bg-slate-100 text-slate-500`), tab aktif hijau (`bg-brand-600 text-white`). Navbar (`navbar.js`)
 di ketiganya judulnya **konstan "Ekspedisi"** (identitas app, bukan judul per-halaman) — tanpa
 tombol back, karena berpindah tab bukan "kembali". Halaman drill-down (detail supir, tambah
 supir, perjalanan baru, buat SJ, plot SPK) TIDAK pakai tab bar — itu tetap navbar biasa dengan
@@ -350,4 +375,5 @@ dan `<author email="dev@example.com">` masih nilai default template.
   approve/reject dari sisi finance sama sekali (siapa berperan sebagai finance juga belum
   diputuskan). Detail lengkap ada di README `ekspedisi-apk-backend`.
 - Export laporan (Excel/PDF) riwayat perjalanan.
-- Ikon & splash screen aplikasi (`res/public/` masih kosong).
+- Ikon & splash screen aplikasi (`res/public/` isinya baru `logo_koperindo.jpeg` buat halaman
+  login, belum ada app icon/splash Cordova sungguhan).

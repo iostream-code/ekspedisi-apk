@@ -6,7 +6,7 @@ import $ from 'jquery';
 // dengan kontrak API asli di ../driver-apk-backend, supaya gampang dicabut nanti
 // (tinggal set MOCK_MODE: false di config.js).
 
-const PLACEHOLDER_PHOTO = 'https://placehold.co/200x200/0F766E/FFFFFF?text=Foto';
+const PLACEHOLDER_PHOTO = 'https://placehold.co/200x200/16A34A/FFFFFF?text=Foto';
 
 // Titik-titik dummy di sekitar Sidoarjo, Jawa Timur
 const BASE_LAT = -7.4478;

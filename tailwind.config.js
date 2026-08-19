@@ -10,13 +10,15 @@ export default {
           soft: '#1E293B',
         },
         paper: '#F5F7FA',
-        // Brand — teal jalur/peta, dipasangkan dengan orange rambu jalan untuk aksi utama
+        // Brand — hijau (2026-08-20, sebelumnya teal), dipasangkan dengan orange rambu jalan
+        // untuk aksi utama. Brand-600 sengaja sama persis dgn status.online di bawah -- app ini
+        // soal ekspedisi/logistik, hijau "jalan/aktif" jadi identitas dan status sekaligus.
         brand: {
-          50: '#EDFAF8',
-          100: '#D2F1EC',
-          400: '#14B8A6',
-          600: '#0F766E',
-          700: '#0C5C55',
+          50: '#F0FDF4',
+          100: '#DCFCE7',
+          400: '#4ADE80',
+          600: '#16A34A',
+          700: '#15803D',
         },
         route: {
           DEFAULT: '#EA580C', // orange rambu jalan — dipakai untuk CTA kritikal (ambil foto, dsb)
