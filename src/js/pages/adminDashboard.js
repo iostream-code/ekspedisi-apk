@@ -21,6 +21,10 @@ export async function renderAdminDashboard($container) {
         <span class="text-sm font-semibold">SPK Siap Kirim</span>
         <span>&rsaquo;</span>
       </a>
+      <a href="#/admin/sj" class="flex items-center justify-between rounded-xl bg-brand-50 px-3 py-2.5 text-brand-700 hover:bg-brand-100">
+        <span class="text-sm font-semibold">Surat Jalan</span>
+        <span>&rsaquo;</span>
+      </a>
       <div class="flex items-center justify-between px-1 pt-1">
         <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Daftar Supir</p>
         <a href="#/admin/driver/new" class="text-xs font-semibold text-brand-600 hover:text-brand-700">+ Tambah Supir</a>

@@ -52,7 +52,9 @@ ekspedisi-apk/
             ├── adminDriverDetail.js   # riwayat perjalanan & thumbnail foto per supir
             ├── adminNewTrip.js         # admin bikin perjalanan baru untuk supir tertentu
             ├── adminNewDriver.js       # admin tambah supir baru -- toggle internal (username pegawai) / eksternal (nama+telepon, opsional ekspedisi)
-            └── adminSpkKirim.js        # daftar SPK siap kirim (t_penjualan_header) + plot ke supir
+            ├── adminSpkKirim.js        # daftar SPK siap kirim (t_penjualan_header) + plot ke supir
+            ├── adminSuratJalan.js      # daftar surat jalan (modul ekspedisi_t_surat_jalan, skema sendiri)
+            └── adminNewSuratJalan.js   # bikin surat jalan manual, tidak terikat trip
 ```
 
 ## Setup & development
@@ -128,6 +130,10 @@ benar-benar dipanggil `api.js`/pages), dan cocok persis dengan
 | POST | `/admin/drivers/:id/trip` | `adminNewTrip.js`, `adminSpkKirim.js` | `{ destination, no_surat_jalan?, penjualan_id? }` | `{ ...trip baru }` |
 | GET | `/admin/surat-jalan/:no` | `adminNewTrip.js` (tombol "Cek") | — | `{ no_surat_jalan, tanggal, kendaraan, plat, pengirim, valid_cs, client_nama, client_alamat }`, 404 kalau tidak ketemu |
 | GET | `/admin/spk-ready-kirim` | `adminSpkKirim.js` | — | `[{ penjualan_id, no_spk, client_nama, kota_asal, kota_tujuan, penjualan_tanggal_kirim, tgl_cs_deadline, penjualan_total_qty }]` |
+| GET | `/admin/sj` | `adminSuratJalan.js` | query opsional: `status`, `penjualan_id` | `[{ id, no_surat_jalan, trip_id, penjualan_id, driver_id, nama_supir, tujuan, kendaraan, plat, jumlah_kirim, foto_surat_jalan, catatan, status, created_at }]` |
+| POST | `/admin/sj` | `adminNewSuratJalan.js` | `{ tujuan, driver_id?, kendaraan?, plat?, jumlah_kirim?, catatan? }` | 201, `{ ...surat jalan baru, no_surat_jalan auto-generated }` |
+| GET | `/admin/sj/:id` | (belum dipanggil dari UI) | — | `{ ...detail surat jalan }`, 404 kalau tidak ketemu |
+| PUT | `/admin/sj/:id` | (belum ada UI edit) | field opsional: `tujuan, kendaraan, plat, jumlah_kirim, catatan` | `{ ...surat jalan terupdate }` |
 
 Catatan: `api.js` memaksa logout + redirect ke `#/login` otomatis pada **response 401** di
 request apa pun (GET/POST/upload) — backend harus benar-benar balikin 401 untuk sesi
@@ -147,6 +153,16 @@ luar. Admin pilih supir, klik "Plot" — bikin trip baru tertaut ke SPK itu
 (`penjualan_id`), destination di-compose otomatis dari nama client + kota tujuan. Detail alur
 lengkap (kapan order masuk daftar ini, kenapa) ada di README `ekspedisi-apk-backend`.
 
+**Modul Surat Jalan** (`#/admin/sj`, `#/admin/sj/new`) — skema **sendiri** milik app ini
+(`ekspedisi_t_surat_jalan`), independen dari tabel `surat_jalan` lama `backend-production`
+(punya lampiran `no_surat_jalan` di atas). Dua jalur pembuatan: (1) **otomatis**, terbentuk/
+terlengkapi tiap kali supir upload foto checkpoint bertipe `sj` di `driverWorkflow.js` (baris
+berstatus `terkirim` begitu foto masuk); (2) **manual**, lewat `adminNewSuratJalan.js` — admin
+bikin baris tanpa trip sama sekali (`trip_id: null`), supir opsional, bisa diisi belakangan
+lewat `PUT /admin/sj/:id` (backend siap, UI edit belum ada). Nomor `no_surat_jalan` (format
+`SJ-YYYYMMDD-xxxx`) di-generate otomatis oleh backend setelah insert. Detail penuh (struktur
+kolom, FK, alasan skema terpisah) ada di README `ekspedisi-apk-backend`.
+
 ## Routing & role guard
 
 `main.js` mendaftarkan route lewat `registerRoute(path, render, { roles, public })`:
@@ -161,6 +177,8 @@ lengkap (kapan order masuk daftar ini, kenapa) ada di README `ekspedisi-apk-back
 | `#/admin/driver/:driverId` | `adminDriverDetail.js` | `admin` |
 | `#/admin/driver/:driverId/trip/new` | `adminNewTrip.js` | `admin` |
 | `#/admin/spk-kirim` | `adminSpkKirim.js` | `admin` |
+| `#/admin/sj/new` | `adminNewSuratJalan.js` | `admin` — didaftarkan sebelum `/admin/sj` di `main.js`, mengikuti pola `driver/new` |
+| `#/admin/sj` | `adminSuratJalan.js` | `admin` |
 
 `router.js` redirect ke `#/login` kalau belum `isAuthenticated()`, dan redirect ke home
 role masing-masing (`#/admin` atau `#/driver`) kalau role tidak cocok dengan `roles` route

@@ -30,6 +30,17 @@ const store = {
     { id: 4, tipe: 'internal', name: 'Slamet Riyadi', status: 'online', lat: jitter(BASE_LAT), lng: jitter(BASE_LNG) },
     { id: 5, tipe: 'eksternal', name: 'Herman (Ekspedisi Jaya)', status: 'offline', lat: null, lng: null },
   ],
+  nextSjId: 2,
+  // Modul surat jalan MILIK app ini sendiri (ekspedisi_t_surat_jalan) -- lihat
+  // App\Support\SuratJalan di driver-apk-backend, bentuk field sama persis.
+  suratJalan: [
+    {
+      id: 1, no_surat_jalan: 'SJ-20260819-0001', trip_id: 101, penjualan_id: null,
+      driver_id: 1, nama_supir: 'Budi Santoso', tujuan: 'Gudang Sidoarjo -> Toko Makmur Jaya',
+      kendaraan: null, plat: null, jumlah_kirim: null, foto_surat_jalan: null,
+      catatan: null, status: 'draft', created_at: new Date().toISOString(),
+    },
+  ],
 };
 
 // Dummy daftar ekspedisi buat demo GET /admin/ekspedisi (lihat ExpedisiLookup
@@ -148,6 +159,32 @@ export function mockRequest(path, method, data) {
     const trip = store.trips[m[1]];
     const type = data.get ? data.get('type') : data.type; // FormData atau object biasa
     if (trip && !trip.completed_steps.includes(type)) trip.completed_steps.push(type);
+
+    // Checkpoint "sj" upsert ke modul surat jalan sendiri (sama seperti
+    // SuratJalan::upsertFromTripPhoto() di driver-apk-backend).
+    if (trip && type === 'sj') {
+      let sj = store.suratJalan.find((s) => s.trip_id === trip.id);
+      if (!sj) {
+        sj = {
+          id: store.nextSjId++,
+          trip_id: trip.id,
+          penjualan_id: trip.penjualan_id || null,
+          driver_id: trip.driver_id,
+          nama_supir: (store.drivers.find((d) => d.id === trip.driver_id) || {}).name || null,
+          tujuan: trip.destination || null,
+          kendaraan: null,
+          plat: null,
+          jumlah_kirim: null,
+          catatan: null,
+          created_at: new Date().toISOString(),
+        };
+        sj.no_surat_jalan = `SJ-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(sj.id).padStart(4, '0')}`;
+        store.suratJalan.push(sj);
+      }
+      sj.foto_surat_jalan = null; // mock: tidak simpan blob foto sungguhan, cukup tandai terkirim
+      sj.status = 'terkirim';
+    }
+
     return delay({ ok: true, completed_steps: trip.completed_steps });
   }
 
@@ -188,6 +225,34 @@ export function mockRequest(path, method, data) {
   // GET /admin/ekspedisi -> daftar perusahaan ekspedisi aktif
   if (method === 'GET' && path === '/admin/ekspedisi') {
     return delay(DUMMY_EKSPEDISI, 200);
+  }
+
+  // GET /admin/sj -> daftar surat jalan (modul milik app ini sendiri)
+  if (method === 'GET' && path === '/admin/sj') {
+    return delay([...store.suratJalan].sort((a, b) => b.id - a.id), 300);
+  }
+
+  // POST /admin/sj -> bikin surat jalan manual dari admin
+  if (method === 'POST' && path === '/admin/sj') {
+    const driver = data.driver_id ? store.drivers.find((d) => d.id === Number(data.driver_id)) : null;
+    const sj = {
+      id: store.nextSjId++,
+      trip_id: null,
+      penjualan_id: null,
+      driver_id: driver ? driver.id : null,
+      nama_supir: driver ? driver.name : null,
+      tujuan: data.tujuan || null,
+      kendaraan: data.kendaraan || null,
+      plat: data.plat || null,
+      jumlah_kirim: data.jumlah_kirim ? Number(data.jumlah_kirim) : null,
+      foto_surat_jalan: null,
+      catatan: data.catatan || null,
+      status: 'draft',
+      created_at: new Date().toISOString(),
+    };
+    sj.no_surat_jalan = `SJ-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(sj.id).padStart(4, '0')}`;
+    store.suratJalan.push(sj);
+    return delay(sj, 400);
   }
 
   // GET /admin/drivers/:id
