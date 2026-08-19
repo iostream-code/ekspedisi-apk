@@ -1,7 +1,7 @@
 {
-  "name": "driver-tracking-app",
+  "name": "ekspedisi-apk",
   "version": "1.0.0",
-  "description": "Aplikasi tracking supir (driver & admin) berbasis Cordova + jQuery + Tailwind + Vite",
+  "description": "Aplikasi Ekspedisi -- tracking supir (internal & eksternal) + plotting pengiriman, berbasis Cordova + jQuery + Tailwind + Vite",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -1,7 +1,12 @@
 import $ from 'jquery';
 import { APP_CONFIG } from './config.js';
-import { logout } from './auth.js';
+import { logout, getToken } from './auth.js';
 import { mockRequest } from './mock.js';
+
+function authHeaders() {
+  const token = getToken();
+  return token ? { Authorization: 'Bearer ' + token } : {};
+}
 
 /**
  * Wrapper request JSON standar.
@@ -19,10 +24,10 @@ function request(path, method = 'GET', data = null) {
     contentType: 'application/json',
     dataType: 'json',
     timeout: 20000,
-    xhrFields: { withCredentials: true }, // wajib supaya cookie sesi login-new ikut terkirim
+    headers: authHeaders(),
   }).fail((xhr) => {
     if (xhr.status === 401) {
-      // Sesi expired/belum login -> paksa logout & balik ke login
+      // Token invalid/expired/dicabut -> paksa logout & balik ke login
       logout();
       window.location.hash = '#/login';
     }
@@ -56,7 +61,7 @@ function uploadFile(path, fileBlob, fieldName, extraFields = {}) {
     processData: false,
     contentType: false,
     timeout: 60000,
-    xhrFields: { withCredentials: true },
+    headers: authHeaders(),
   }).fail((xhr) => {
     if (xhr.status === 401) {
       logout();

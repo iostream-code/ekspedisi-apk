@@ -16,8 +16,8 @@ export function renderLogin($container) {
           <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-route shadow-lg shadow-route/30">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l2-6h9l2 6"/><path d="M5 12h14v5H5z"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/></svg>
           </div>
-          <h1 class="font-display text-2xl font-semibold text-white">Tracking Supir</h1>
-          <p class="mt-1 text-sm text-slate-400">Pantau status & perjalanan supir secara real-time</p>
+          <h1 class="font-display text-2xl font-semibold text-white">Ekspedisi</h1>
+          <p class="mt-1 text-sm text-slate-400">Pantau status supir & kelola pengiriman secara real-time</p>
         </div>
 
         <form id="login-form" class="card space-y-4 p-6">

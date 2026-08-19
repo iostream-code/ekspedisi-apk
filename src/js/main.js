@@ -5,6 +5,8 @@ import { renderDriverWorkflow } from './pages/driverWorkflow.js';
 import { renderAdminDashboard } from './pages/adminDashboard.js';
 import { renderAdminDriverDetail } from './pages/adminDriverDetail.js';
 import { renderAdminNewTrip } from './pages/adminNewTrip.js';
+import { renderAdminNewDriver } from './pages/adminNewDriver.js';
+import { renderAdminSpkKirim } from './pages/adminSpkKirim.js';
 import { APP_CONFIG } from './config.js';
 import { login, isAuthenticated } from './auth.js';
 
@@ -12,6 +14,10 @@ registerRoute('/login', renderLogin, { public: true });
 registerRoute('/driver', renderDriverDashboard, { roles: ['driver'] });
 registerRoute('/driver/trip/:tripId', renderDriverWorkflow, { roles: ['driver'] });
 registerRoute('/admin', renderAdminDashboard, { roles: ['admin'] });
+// WAJIB didaftarkan SEBELUM '/admin/driver/:driverId' -- router.js first-match-wins,
+// dan pattern :driverId juga akan "menangkap" literal 'new' sebagai id kalau urutannya kebalik.
+registerRoute('/admin/driver/new', renderAdminNewDriver, { roles: ['admin'] });
+registerRoute('/admin/spk-kirim', renderAdminSpkKirim, { roles: ['admin'] });
 registerRoute('/admin/driver/:driverId', renderAdminDriverDetail, { roles: ['admin'] });
 registerRoute('/admin/driver/:driverId/trip/new', renderAdminNewTrip, { roles: ['admin'] });
 

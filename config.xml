@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<widget id="com.perusahaan.trackingsupir" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
-    <name>Tracking Supir</name>
-    <description>Aplikasi tracking supir dan monitoring admin.</description>
+<widget id="com.perusahaan.ekspedisi" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+    <name>Ekspedisi</name>
+    <description>Aplikasi ekspedisi -- tracking supir (internal &amp; eksternal), plotting pengiriman, monitoring admin.</description>
     <author email="dev@example.com" href="https://example.com">Tim Dev</author>
 
     <content src="index.html" />

@@ -1,6 +1,6 @@
 import $ from 'jquery';
 import { renderNavbar } from '../components/navbar.js';
-import { pageLoaderHtml } from '../components/loader.js';
+import { pageLoaderHtml, emptyStateHtml } from '../components/loader.js';
 import { api } from '../api.js';
 import { navigate } from '../router.js';
 
@@ -48,7 +48,7 @@ export async function renderAdminDriverDetail($container, params) {
           <p class="font-medium text-ink">${trip.destination || 'Perjalanan #' + trip.id}</p>
           <span class="rounded-full px-2 py-0.5 text-xs font-medium ${isActive ? 'bg-status-online/10 text-status-online' : 'bg-slate-100 text-slate-600'}">${trip.status_label}</span>
         </div>
-        <p class="mt-1 text-xs text-slate-400">${trip.created_at}</p>
+        <p class="mt-1 text-xs text-slate-400">${trip.created_at}${trip.penjualan_id ? ' &middot; SPK ' + trip.penjualan_id : ''}${trip.no_surat_jalan ? ' &middot; SJ ' + trip.no_surat_jalan : ''}</p>
         <div class="mt-3 flex gap-2" data-photos></div>
       </div>
     `);
@@ -67,6 +67,6 @@ export async function renderAdminDriverDetail($container, params) {
   });
 
   if (!(detail.trips || []).length) {
-    $tripList.append('<p class="text-sm text-slate-400">Belum ada riwayat perjalanan.</p>');
+    $tripList.append(emptyStateHtml());
   }
 }

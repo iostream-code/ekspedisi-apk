@@ -1,6 +1,6 @@
 import $ from 'jquery';
 import { renderNavbar } from '../components/navbar.js';
-import { pageLoaderHtml, setButtonLoading } from '../components/loader.js';
+import { pageLoaderHtml, setButtonLoading, emptyStateHtml } from '../components/loader.js';
 import { api } from '../api.js';
 import { geo } from '../geo.js';
 
@@ -59,11 +59,7 @@ export async function renderDriverDashboard($container) {
     $('#trip-count').text(trips.length ? `${trips.length} perjalanan` : '');
 
     if (!trips.length) {
-      $list.append(`
-        <div class="card p-6 text-center text-sm text-slate-400">
-          Belum ada perjalanan yang ditugaskan admin.<br/>Perjalanan baru akan muncul di sini otomatis.
-        </div>
-      `);
+      $list.append(`<div class="card">${emptyStateHtml()}</div>`);
       return;
     }
 

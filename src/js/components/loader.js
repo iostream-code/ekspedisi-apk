@@ -27,6 +27,24 @@ export function pageLoaderHtml(label = 'Memuat...') {
 }
 
 /**
+ * Ikon kosong + label singkat buat state list yang belum ada isinya --
+ * mis. trip-list dashboard supir & riwayat perjalanan di detail supir (admin).
+ */
+export function emptyStateHtml() {
+  return `
+    <div class="flex flex-col items-center justify-center gap-1.5 py-6 text-slate-300">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 8l-2-5H5L3 8" />
+        <path d="M3 8v11a2 2 0 002 2h14a2 2 0 002-2V8" />
+        <path d="M3 8h18" />
+        <path d="M9 12v3h6v-3" />
+      </svg>
+      <p class="text-xs font-medium text-slate-400">Data Kosong</p>
+    </div>
+  `;
+}
+
+/**
  * Toggle state loading pada tombol: disable + ganti isi jadi spinner+label,
  * lalu kembalikan ke tampilan semula (disimpan otomatis) saat loading = false.
  */
