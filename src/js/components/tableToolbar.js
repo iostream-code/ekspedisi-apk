@@ -3,6 +3,7 @@ import $ from 'jquery';
 const REFRESH_ICON = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>`;
 const HISTORY_ICON = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
 const LIST_ICON = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`;
+const PLUS_ICON = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
 
 /**
  * Toolbar gaya "data table" (judul tetap "Data | <jumlah>" di kiri, tombol
@@ -18,7 +19,9 @@ const LIST_ICON = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" s
  *   ikon "Riwayat" berubah jadi ikon "kembali ke daftar aktif".
  * @param {Function} opts.onRefresh
  * @param {Function} opts.onToggleHistory
- * @param {string} [opts.addLabel] - kalau diisi, tampilkan tombol tambah di toolbar (mis. "+ Buat SJ")
+ * @param {string} [opts.addLabel] - kalau diisi, tampilkan tombol tambah (ikon "+") di toolbar,
+ *   dipakai sebagai tooltip title-nya (mis. "Buat SJ") -- gaya tombol sama persis dengan
+ *   Riwayat/Refresh (ikon polos, bukan tombol berwarna), cuma beda ikon.
  * @param {Function} [opts.onAdd]
  */
 export function renderTableToolbar($container, { count, historyActive, onRefresh, onToggleHistory, addLabel, onAdd }) {
@@ -26,7 +29,7 @@ export function renderTableToolbar($container, { count, historyActive, onRefresh
     <div class="flex items-center justify-between rounded-t-2xl bg-ink px-4 py-2.5">
       <p class="text-sm font-semibold text-white">Data | ${count}</p>
       <div class="flex items-center gap-3">
-        ${addLabel ? `<button id="btn-toolbar-add" class="rounded-lg bg-route px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90">${addLabel}</button>` : ''}
+        ${addLabel ? `<button id="btn-toolbar-add" title="${addLabel}" class="rounded p-0.5 text-white/70 transition hover:text-white">${PLUS_ICON}</button>` : ''}
         <button id="btn-toggle-history" title="${historyActive ? 'Lihat daftar aktif' : 'Lihat riwayat'}"
           class="rounded p-0.5 text-white/70 transition hover:text-white">
           ${historyActive ? LIST_ICON : HISTORY_ICON}
