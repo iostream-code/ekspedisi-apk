@@ -15,7 +15,12 @@ import { consumePrefillPenjualanId } from '../prefill.js';
  *
  * 1 SJ boleh mengangkut lini produk dari LEBIH DARI 1 SPK sekaligus
  * (2026-08-20) -- admin bisa "Tambah" beberapa nomor SPK berturut-turut,
- * tiap SPK jadi 1 grup section dengan breakdown produknya sendiri.
+ * tiap SPK jadi 1 grup dengan breakdown produknya sendiri.
+ *
+ * Form dibagi 2 card terpisah (2026-08-20): card "SPK" (cek/tambah SPK +
+ * breakdown per lini produk) lebih dulu, baru card "Detail Surat Jalan"
+ * (tujuan/supir/kendaraan/dst + tombol submit) -- 1 elemen <form> yang sama
+ * membungkus keduanya, cuma dipisah visual jadi 2 card.
  */
 export async function renderAdminNewSuratJalan($container) {
   renderNavbar($container, 'Buat Surat Jalan', { onBack: () => navigate('/admin/sj') });
@@ -34,75 +39,82 @@ export async function renderAdminNewSuratJalan($container) {
     .join('');
 
   $main.html(`
-    <form id="new-sj-form" class="card space-y-4 p-4">
-      <div>
-        <label class="mb-1 block text-sm font-medium text-slate-600">Nomor SPK</label>
-        <div class="flex gap-2">
-          <input id="penjualan_id" type="text" placeholder="Contoh: INV_01701-5"
-            class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
-          <button type="button" id="btn-tambah-spk" class="btn-ghost shrink-0 !py-2.5 px-4 text-sm">+ Tambah</button>
-        </div>
-        <p class="mt-1.5 text-xs text-slate-400">1 SJ boleh mengangkut lebih dari 1 SPK sekaligus -- isi nomor,
-          klik Tambah, ulangi kalau ada SPK lain. Breakdown per produk & sisa qty tercatat otomatis. Jangan
-          tambah SPK apa pun kalau ini pengiriman lepas (bukan dari SPK, mis. sampel/transfer internal).</p>
-        <div id="spk-groups" class="mt-3 hidden space-y-3"></div>
-        <p id="spk-error" class="mt-2 hidden rounded-lg bg-status-alert/10 px-3 py-2 text-sm font-medium text-status-alert"></p>
-      </div>
-      <div>
-        <label class="mb-1 block text-sm font-medium text-slate-600">Tujuan</label>
-        <input id="tujuan" type="text" placeholder="Contoh: Toko Makmur Jaya, Sidoarjo"
-          class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
-      </div>
-      <div>
-        <label class="mb-1 block text-sm font-medium text-slate-600">Supir</label>
-        <select id="driver_id" required
-          class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
-          <option value="" disabled selected>-- Pilih supir --</option>
-          ${driverOptions}
-        </select>
-      </div>
-      <div class="grid grid-cols-2 gap-3">
+    <form id="new-sj-form" class="space-y-4">
+      <div class="card space-y-4 p-4">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">SPK</p>
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-600">Kendaraan</label>
-          <input id="kendaraan" type="text" placeholder="Grandmax"
+          <label class="mb-1 block text-sm font-medium text-slate-600">Nomor SPK</label>
+          <div class="flex gap-2">
+            <input id="penjualan_id" type="text" placeholder="Contoh: INV_01701-5"
+              class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
+            <button type="button" id="btn-tambah-spk" class="btn-ghost shrink-0 !py-2.5 px-4 text-sm">+ Tambah</button>
+          </div>
+          <p class="mt-1.5 text-xs text-slate-400">1 SJ boleh mengangkut lebih dari 1 SPK sekaligus -- isi nomor,
+            klik Tambah, ulangi kalau ada SPK lain. Breakdown per produk & sisa qty tercatat otomatis. Jangan
+            tambah SPK apa pun kalau ini pengiriman lepas (bukan dari SPK, mis. sampel/transfer internal).</p>
+          <div id="spk-groups" class="mt-3 hidden space-y-3"></div>
+          <p id="spk-error" class="mt-2 hidden rounded-lg bg-status-alert/10 px-3 py-2 text-sm font-medium text-status-alert"></p>
+        </div>
+      </div>
+
+      <div class="card space-y-4 p-4">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Detail Surat Jalan</p>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-600">Tujuan</label>
+          <input id="tujuan" type="text" placeholder="Contoh: Toko Makmur Jaya, Sidoarjo"
             class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
         </div>
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-600">Plat</label>
-          <input id="plat" type="text" placeholder="P 1234 XY"
-            class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
+          <label class="mb-1 block text-sm font-medium text-slate-600">Supir</label>
+          <select id="driver_id" required
+            class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
+            <option value="" disabled selected>-- Pilih supir --</option>
+            ${driverOptions}
+          </select>
         </div>
-      </div>
-      <div>
-        <label class="mb-1 block text-sm font-medium text-slate-600">Penerima (opsional)</label>
-        <input id="penerima" type="text" placeholder="Nama PIC di tujuan"
-          class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
-        <p class="mt-1.5 text-xs text-slate-400">Bantu supir tahu siapa yang harus dihubungi/diserahi barang di tujuan.</p>
-      </div>
-      <div class="grid grid-cols-2 gap-3">
-        <div id="jumlah-kirim-wrap">
-          <label class="mb-1 block text-sm font-medium text-slate-600">Jumlah kirim</label>
-          <input id="jumlah_kirim" type="number" min="0" placeholder="0"
-            class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-600">Kendaraan</label>
+            <input id="kendaraan" type="text" placeholder="Grandmax"
+              class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-600">Plat</label>
+            <input id="plat" type="text" placeholder="P 1234 XY"
+              class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
+          </div>
         </div>
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-600">Tanggal kirim</label>
-          <input id="tgl_kirim" type="date"
+          <label class="mb-1 block text-sm font-medium text-slate-600">Penerima (opsional)</label>
+          <input id="penerima" type="text" placeholder="Nama PIC di tujuan"
             class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
+          <p class="mt-1.5 text-xs text-slate-400">Bantu supir tahu siapa yang harus dihubungi/diserahi barang di tujuan.</p>
         </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div id="jumlah-kirim-wrap">
+            <label class="mb-1 block text-sm font-medium text-slate-600">Jumlah kirim</label>
+            <input id="jumlah_kirim" type="number" min="0" placeholder="0"
+              class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-600">Tanggal kirim</label>
+            <input id="tgl_kirim" type="date"
+              class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
+          </div>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-600">Foto Surat Jalan (opsional)</label>
+          <button type="button" id="btn-foto" class="btn-ghost w-full !py-2.5 text-sm">Ambil Foto</button>
+          <p id="foto-status" class="mt-1.5 text-xs text-slate-400">Belum ada foto.</p>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-600">Catatan (opsional)</label>
+          <textarea id="catatan" rows="2"
+            class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100"></textarea>
+        </div>
+        <p id="form-error" class="hidden rounded-lg bg-status-alert/10 px-3 py-2 text-sm font-medium text-status-alert"></p>
+        <button type="submit" id="btn-submit" class="btn-route w-full">Buat Surat Jalan</button>
       </div>
-      <div>
-        <label class="mb-1 block text-sm font-medium text-slate-600">Foto Surat Jalan (opsional)</label>
-        <button type="button" id="btn-foto" class="btn-ghost w-full !py-2.5 text-sm">Ambil Foto</button>
-        <p id="foto-status" class="mt-1.5 text-xs text-slate-400">Belum ada foto.</p>
-      </div>
-      <div>
-        <label class="mb-1 block text-sm font-medium text-slate-600">Catatan (opsional)</label>
-        <textarea id="catatan" rows="2"
-          class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100"></textarea>
-      </div>
-      <p id="form-error" class="hidden rounded-lg bg-status-alert/10 px-3 py-2 text-sm font-medium text-status-alert"></p>
-      <button type="submit" id="btn-submit" class="btn-route w-full">Buat Surat Jalan</button>
     </form>
   `);
 
