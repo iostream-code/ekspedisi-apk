@@ -303,7 +303,7 @@ export function mockRequest(rawPath, method, data) {
 
   // GET /admin/sj -> daftar surat jalan (modul milik app ini sendiri), query opsional q/status/page/per_page
   if (method === 'GET' && path === '/admin/sj') {
-    let list = [...store.suratJalan].sort((a, b) => b.id - a.id);
+    let list = [...store.suratJalan].sort((a, b) => new Date(b.created_at) - new Date(a.created_at) || b.id - a.id);
     if (query.status) list = list.filter((sj) => sj.status === query.status);
     if (query.q) {
       const q = query.q.toLowerCase();
