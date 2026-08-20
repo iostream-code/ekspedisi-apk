@@ -28,7 +28,7 @@ ekspedisi-apk/
 ├── config.xml            # konfigurasi Cordova (id app, permission, plugin native)
 ├── vite.config.js         # build src/ -> www/ (base:'' wajib utk file:// di WebView)
 ├── tailwind.config.js      # palet warna: brand (hijau), route (orange CTA), status (dot supir)
-├── res/public/             # disalin apa adanya ke www/ oleh Vite -- isinya cuma logo_koperindo.jpeg
+├── public/                # disalin apa adanya ke www/ oleh Vite (publicDir) -- isinya cuma logo_koperindo.jpeg
 │                            # (dipakai login.js) saat ini, belum ada ikon/splash app
 └── src/
     ├── index.html
@@ -38,17 +38,22 @@ ekspedisi-apk/
         ├── router.js         # hash router custom: dynamic segment `:param`, guard `roles`/`public`
         ├── config.js          # APP_CONFIG — MOCK_MODE, AUTO_LOGIN_ROLE, API_BASE_URL, dst
         ├── auth.js            # login (1 request -> token), session { token, role, user } di localStorage
-        ├── api.js             # wrapper $.ajax (JSON) + uploadFile (multipart), auto-logout on 401
+        ├── api.js             # wrapper $.ajax (JSON) + uploadFile/postMultipart (multipart), auto-logout on 401
         ├── mock.js            # backend palsu in-memory, dipakai saat MOCK_MODE: true
         ├── geo.js             # watchPosition + ping lokasi berkala ke server
         ├── camera.js          # ambil foto: cordova-plugin-camera, fallback <input capture> di browser
         ├── prefill.js         # state kecil di memori: titip penjualan_id dari tab SPK ke form Buat SJ
         ├── connection.js       # indikator online/offline di topbar (navigator.onLine + event online/offline)
+        ├── versionCheck.js      # cek versi app tiap 30 detik ke POST /config/check-version (lihat bagian "Cek versi app")
+        ├── app-version.js       # [AUTO-GENERATE bump-version.cjs] CURRENT_APP_VERSION_CODE/STRING -- JANGAN edit manual
+        ├── format.js          # formatSpkNo()/toTitleCase() -- format tampilan nomor SPK & nama klien, lihat bagian "Format nomor SPK" di bawah
         ├── components/
         │   ├── navbar.js       # header hijau + connection-indicator + tombol back/logout, dipakai tiap halaman
         │   ├── adminTabs.js     # tab bar SPK/SJ/Ekspedisi -- cuma di 3 halaman ROOT admin
         │   ├── tableToolbar.js   # toolbar "Data | jumlah" + kotak cari + Riwayat/Refresh di atas <table> (tab SPK & SJ)
-        │   ├── pagination.js     # kontrol Sebelumnya/Selanjutnya + "X-Y dari Z" di bawah <table>
+        │   ├── pagination.js     # kontrol panah kiri/kanan + "halaman/total" (mis. "1/20") di bawah <table>
+        │   ├── modal.js         # overlay+panel generik (KOMPONEN MODAL PERTAMA app ini), dipakai "Detail Surat Jalan"
+        │   ├── lightbox.js      # popup gambar full-screen, delegated ke SEMUA <img data-lightbox>
         │   └── loader.js       # spinner, page loader, setButtonLoading()
         └── pages/
             ├── login.js
@@ -57,11 +62,11 @@ ekspedisi-apk/
             ├── adminSpkBelumSj.js     # tab "SPK" -- HALAMAN AWAL admin, SPK ready-kirim tanpa SJ + tombol "Buat SJ"
             ├── adminSuratJalan.js      # tab "SJ" -- daftar surat jalan (modul ekspedisi_t_surat_jalan, skema sendiri)
             ├── adminNewSuratJalan.js   # bikin surat jalan manual, tidak terikat trip (drill-down dari tab SJ/SPK)
-            ├── adminDashboard.js      # tab "Ekspedisi" -- peta live (Leaflet) + list status, auto-refresh 15 detik
-            ├── adminDriverDetail.js   # riwayat perjalanan & thumbnail foto per supir (drill-down dari tab Ekspedisi)
-            ├── adminNewTrip.js         # admin bikin perjalanan baru untuk supir tertentu
-            ├── adminNewDriver.js       # admin tambah supir baru -- toggle internal (username pegawai) / eksternal (nama+telepon, opsional ekspedisi)
-            └── adminSpkKirim.js        # "Plot SPK ke Supir" -- daftar SPK belum diplot + plot ke supir (drill-down dari tab Ekspedisi)
+            ├── adminDashboard.js      # tab "Ekspedisi" -- MURNI monitoring (peta live Leaflet + list supir yg sedang mengirim), auto-refresh 15 detik
+            ├── adminDriverDetail.js   # riwayat perjalanan, dokumen (SIM/KTP/STNK), & thumbnail foto per supir (drill-down dari tab Ekspedisi)
+            ├── adminNewTrip.js         # admin bikin perjalanan MANUAL (independen SPK/SJ) untuk supir tertentu
+            ├── adminNewDriver.js       # admin tambah supir baru -- toggle internal (username+SIM) / eksternal (nama+telepon+opsional ekspedisi+KTP/SIM/STNK)
+            └── adminEkspedisiList.js   # kelola master perusahaan ekspedisi eksternal (drill-down dari tab Ekspedisi)
 ```
 
 ## Tema, topbar, & connection indicator (2026-08-20)
@@ -84,8 +89,11 @@ ekspedisi-apk/
   sudah cukup akurat lewat itu). Listener dipasang SEKALI di level module (bukan tiap render
   navbar) — tiap event fire, cari elemen `#connection-indicator` yang SEDANG ada di DOM.
 - **Logo login** (`login.js`) — ikon placeholder (truk generik) diganti foto asli
-  `res/public/logo_koperindo.jpeg` (ditambahkan manual, disalin Vite apa adanya ke `www/` krn
-  ada di `publicDir`, direferensikan relatif `logo_koperindo.jpeg` dari halaman).
+  `public/logo_koperindo.jpeg` (ditambahkan manual, disalin Vite apa adanya ke `www/` krn
+  ada di `publicDir`, direferensikan relatif `logo_koperindo.jpeg` dari halaman). Folder
+  `public/` di root ini (Vite `publicDir`) beda dari `res/` konvensi Cordova (ikon/splash
+  native, belum dipakai saat ini) — sengaja dipisah supaya tidak campur aduk dua konvensi
+  berbeda (2026-08-20, sebelumnya sempat digabung jadi `res/public/`).
 
 ## Setup & development
 
@@ -146,6 +154,7 @@ benar-benar dipanggil `api.js`/pages), dan cocok persis dengan
 | Method | Endpoint | Dipanggil dari | Request | Response |
 |---|---|---|---|---|
 | POST | `/login` | `auth.js login()` | `{ username, password }` (JSON) | `{ token, role, user: { id, name } }` |
+| POST | `/config/check-version` | `versionCheck.js` (polling tiap 30 detik, mulai dari `bootstrap()` `main.js`) | `{ current_version_code }` (integer dari `app-version.js`) | `{ status: 'success', is_valid: bool, config: { config_keterangan, ... }\|null }` — `is_valid: false` → alert pesan `config.config_keterangan` + paksa logout |
 | POST | `/logout` | `auth.js logout()` | header `Authorization: Bearer <token>` | fire-and-forget, tidak ditunggu |
 | GET | `/driver/me` | `driverDashboard.js` | — | `{ id, name, status, active_trips: [{ id, destination, current_step_label, ... }] }` |
 | POST | `/driver/status` | `driverDashboard.js` | `{ status: 'online'\|'resting'\|'offline' }` | `{ status }` |
@@ -153,18 +162,20 @@ benar-benar dipanggil `api.js`/pages), dan cocok persis dengan
 | GET | `/driver/trip/:id` | `driverWorkflow.js` | — | `{ id, destination, completed_steps: ['berangkat', ...] }` |
 | POST | `/driver/trip/:id/photo` | `driverWorkflow.js` (via `api.uploadFile`) | multipart: `photo` (file), `type` (`berangkat`\|`serah_terima`\|`sj`), `lat`, `lng` | `{ ok, completed_steps }` |
 | POST | `/driver/trip/:id/complete` | `driverWorkflow.js` (otomatis setelah 3 foto) | — | `{ ...trip }` |
-| GET | `/admin/drivers` | `adminDashboard.js` (auto-refresh 15 detik) | — | `[{ id, name, status, lat, lng, current_step_label }]` |
-| POST | `/admin/drivers` | `adminNewDriver.js` | Internal: `{ tipe: 'internal', username }`. Eksternal: `{ tipe: 'eksternal', nama, telepon?, id_expedisi? }` | `{ id, name, status, tipe }` |
-| GET | `/admin/ekspedisi` | `adminNewDriver.js` (dropdown perusahaan) | — | `[{ id_expedisi, kode_expedisi, nama_expedisi, pic, no_telp }]` |
-| GET | `/admin/drivers/:id` | `adminDriverDetail.js`, `adminNewTrip.js` | — | `{ id, name, phone, status, trips: [{ id, destination, status_label, created_at, photos: [{ type, url }] }] }` |
-| POST | `/admin/drivers/:id/trip` | `adminNewTrip.js`, `adminSpkKirim.js` | `{ destination, no_surat_jalan?, penjualan_id? }` | `{ ...trip baru }` |
+| GET | `/admin/drivers` | `adminDashboard.js` (auto-refresh 15 detik) | — | Supir yang **SEDANG mengirim saja** (2026-08-20, dulu SEMUA supir) → `[{ id, name, status, lat, lng, current_step_label }]` |
+| POST | `/admin/drivers` | `adminNewDriver.js` | **multipart** (2026-08-20). Internal: `{ tipe: 'internal', username }` + file `foto_sim` (WAJIB). Eksternal: `{ tipe: 'eksternal', nama, telepon?, id_expedisi? }` + file `foto_ktp`, `foto_sim`, `foto_stnk` (KETIGANYA WAJIB) | `{ id, name, status, tipe, foto_*: path }` |
+| POST | `/admin/drivers/:id/documents` | `adminDriverDetail.js` (tombol "Upload Foto" per slot dokumen) | multipart, opsional (isi salah satu/lebih): `foto_sim?`, `foto_ktp?`, `foto_stnk?` | `{ foto_sim, foto_ktp, foto_stnk }` (URL) |
+| GET | `/admin/ekspedisi` | `adminNewDriver.js` (dropdown perusahaan), `adminEkspedisiList.js` (`?all=1`, layar kelola) | query opsional `all=1` | `[{ id, kode_ekspedisi, nama_ekspedisi, pic, alamat, no_telp, is_active }]` — 2026-08-20, master lokal (`ekspedisi_m_ekspedisi`), dulu field beda nama & baca `m_expedisi` |
+| POST | `/admin/ekspedisi` | `adminEkspedisiList.js` (tombol "+") | `{ kode_ekspedisi?, nama_ekspedisi (WAJIB), pic?, alamat?, no_telp? }` | 201, `{ ...perusahaan baru }` |
+| PUT | `/admin/ekspedisi/:id` | `adminEkspedisiList.js` (tombol "Edit", termasuk toggle Aktif) | field opsional: `kode_ekspedisi, nama_ekspedisi, pic, alamat, no_telp, is_active` | `{ ...perusahaan terupdate }` |
+| GET | `/admin/drivers/:id` | `adminDriverDetail.js`, `adminNewTrip.js` | — | `{ id, name, phone, status, foto_sim, foto_ktp, foto_stnk, trips: [{ id, destination, status_label, created_at, photos: [{ type, url }] }] }` — `foto_*` (2026-08-20, baru) URL lengkap atau `null` kalau belum diunggah |
+| POST | `/admin/drivers/:id/trip` | `adminNewTrip.js` ("Perjalanan Baru", jalur MANUAL independen SPK/SJ) | `{ destination, no_surat_jalan?, penjualan_id? }` | `{ ...trip baru }` |
 | POST | `/admin/trips/:id/complete` | `adminDriverDetail.js` (tombol "Tandai Selesai", cuma tampil utk trip aktif supir eksternal) | — | `{ ...trip, status: 'completed' }`, 422 kalau supirnya internal |
 | GET | `/admin/surat-jalan/:no` | `adminNewTrip.js` (tombol "Cek") | — | `{ no_surat_jalan, tanggal, kendaraan, plat, pengirim, valid_cs, client_nama, client_alamat }`, 404 kalau tidak ketemu |
-| GET | `/admin/spk-ready-kirim` | `adminSpkKirim.js` (halaman "Plot SPK ke Supir") | — | SPK ready-kirim **belum diplot ke supir** → `[{ penjualan_id, no_spk, client_nama, kota_asal, kota_tujuan, penjualan_tanggal_kirim, tgl_cs_deadline, penjualan_total_qty }]` |
-| GET | `/admin/spk-belum-sj` | `adminSpkBelumSj.js` (tab "SPK", halaman awal admin) | query opsional: `q`, `page`, `per_page` | SPK ready-kirim **belum ada SJ sama sekali** (kriteria beda dari baris di atas, independen — lihat README `ekspedisi-apk-backend`) → `{ data: [...bentuk field sama persis...], total, page, per_page }` |
+| GET | `/admin/spk-belum-sj` | `adminSpkBelumSj.js` (tab "SPK", halaman awal admin) | query opsional: `q`, `page`, `per_page` | SPK ready-kirim **belum ada SJ sama sekali** → `{ data: [...], total, page, per_page }`. (`GET /admin/spk-ready-kirim`, "belum diplot ke supir", DIHAPUS 2026-08-20 bareng halaman "Plot SPK ke Supir" — lihat bagian "Tab Ekspedisi jadi murni monitoring" di bawah) |
 | GET | `/admin/sj/spk/:penjualan_id/items` | `adminNewSuratJalan.js` (tombol "+ Tambah" di field Nomor SPK, bisa dipanggil berkali-kali utk beberapa SPK) | — | `[{ penjualan_detail_performa_id, penjualan_jenis, penjualan_qty, terkirim, sisa }]`, 404 kalau SPK tidak ketemu |
-| GET | `/admin/sj` | `adminSuratJalan.js` | query opsional: `status`, `penjualan_id`, `q`, `page`, `per_page` | `{ data: [{ id, no_surat_jalan, trip_id, penjualan_id, driver_id, nama_supir, tujuan, kendaraan, plat, penerima, jumlah_kirim, tgl_kirim, asal, items: [{ penjualan_detail_performa_id, penjualan_id, penjualan_jenis, jumlah_kirim }], foto_surat_jalan, foto_validasi, divalidasi_oleh, divalidasi_at, nama_validator, catatan, status, created_at }], total, page, per_page }` — `asal` = `native`/`migrasi_legacy` (badge "Data Lama" di tabel utk yang migrasi) |
-| POST | `/admin/sj` | `adminNewSuratJalan.js` | `{ tujuan, driver_id (WAJIB), kendaraan?, plat?, penerima?, jumlah_kirim?, tgl_kirim?, catatan?, items?: [{ penjualan_detail_performa_id, jumlah_kirim }] }` | 201, `{ ...surat jalan baru, no_surat_jalan auto-generated }`, 422 kalau `driver_id` kosong atau ada item melebihi sisa qty. `items` boleh lintas beberapa SPK sekaligus, tidak ada param `penjualan_id` lagi |
+| GET | `/admin/sj` | `adminSuratJalan.js` | query opsional: `status`, `penjualan_id`, `q`, `page`, `per_page` | `{ data: [{ id, no_surat_jalan, trip_id, penjualan_id, driver_id, nama_supir, tujuan, kendaraan, plat, penerima, jumlah_kirim, tgl_kirim, asal, items: [{ penjualan_detail_performa_id, penjualan_id, penjualan_jenis, jumlah_kirim }], client_names: [...], foto_surat_jalan, foto_validasi, divalidasi_oleh, divalidasi_at, nama_validator, catatan, status, created_at }], total, page, per_page }` — `asal` = `native`/`migrasi_legacy` (badge "Data Lama", cuma di modal Detail sejak tabel dirampingkan, lihat di bawah). `client_names` (2026-08-20) = nama klien per SPK yang disentuh, dipakai kolom "Klien" |
+| POST | `/admin/sj` | `adminNewSuratJalan.js` | `{ tujuan, driver_id (WAJIB), kendaraan?, plat?, penerima?, jumlah_kirim?, tgl_kirim?, catatan?, items?: [{ penjualan_detail_performa_id, jumlah_kirim }] }` | 201, `{ ...surat jalan baru, no_surat_jalan auto-generated }`, 422 kalau `driver_id` kosong atau ada item melebihi sisa qty. `items` boleh lintas beberapa SPK sekaligus, tidak ada param `penjualan_id` lagi. (2026-08-20) Kalau `driver_id`-nya supir **internal**, backend OTOMATIS bikin `ekspedisi_t_trip` & menautkannya (gantiin langkah "Plot SPK ke Supir" yang dihapus) — supir tetap bisa checkpoint foto sendiri lewat app-nya; supir eksternal sengaja tidak dibikinkan trip |
 | GET | `/admin/sj/:id` | (belum dipanggil dari UI) | — | `{ ...detail surat jalan }`, 404 kalau tidak ketemu |
 | PUT | `/admin/sj/:id` | (belum ada UI edit) | field opsional: `tujuan, kendaraan, plat, penerima, jumlah_kirim, tgl_kirim, catatan` | `{ ...surat jalan terupdate }` |
 | POST | `/admin/sj/:id/photo` | `adminNewSuratJalan.js` (kalau admin ambil foto sebelum submit) | multipart: `photo` | `{ ...surat jalan, status: 'terkirim' }` |
@@ -179,14 +190,13 @@ kadaluarsa, bukan 200 dengan pesan error di body.
 tautan by-nomor, belum ada auto-fill/validasi CS otomatis — detail lengkap & batasannya ada
 di README `ekspedisi-apk-backend`.
 
-**Halaman "SPK Siap Kirim"** (`#/admin/spk-kirim`) — daftar order yang sudah disetujui utk
-dikirim (`t_penjualan_header.shipment_status='approved'`, sudah lunas ATAU sudah di-approve
-manual oleh sistem approval `backend-production`) tapi belum diplot ke supir manapun. Dropdown
-pilih supir per baris menampilkan supir **internal maupun eksternal** sekaligus (label
-"(Eksternal)" di belakang nama) — satu alur yang sama, tidak ada UI terpisah utk ekspedisi
-luar. Admin pilih supir, klik "Plot" — bikin trip baru tertaut ke SPK itu
-(`penjualan_id`), destination di-compose otomatis dari nama client + kota tujuan. Detail alur
-lengkap (kapan order masuk daftar ini, kenapa) ada di README `ekspedisi-apk-backend`.
+**Halaman "SPK Siap Kirim" / "Plot SPK ke Supir" (`#/admin/spk-kirim`) DIHAPUS (2026-08-20).**
+Dulu daftar order yang sudah disetujui utk dikirim tapi belum diplot ke supir manapun, admin
+pilih supir dari dropdown (internal & eksternal sekaligus) lalu "Plot" bikin trip baru tertaut
+ke SPK itu — **keputusan produk:** dianggap redundan begitu tab SPK & SJ ada (supir melekat ke
+pengiriman/SJ, pengiriman melekat ke SPK, jadi tidak perlu langkah plotting terpisah lagi).
+Assignment sekarang murni lewat field "Supir" (WAJIB) di form "Buat Surat Jalan" — lihat bagian
+"Tab Ekspedisi jadi murni monitoring" di bawah utk apa yang menggantikannya.
 
 **Modul Surat Jalan** (`#/admin/sj`, `#/admin/sj/new`) — skema **sendiri** milik app ini
 (`ekspedisi_t_surat_jalan`), independen dari tabel `surat_jalan` lama `backend-production`
@@ -259,8 +269,9 @@ dipakai apa adanya; kalau relatif, baru digabung dgn `API_BASE_URL` seperti bias
 (`adminSuratJalan.js`) dirombak dari kartu ke `<table>`, meniru pola card-header di
 `surat-jalan-apk` (judul + jumlah baris + ikon refresh/riwayat di toolbar gelap di atas tabel —
 lihat `pages/surat_jalan.html` di sana), disesuaikan ke sistem desain Tailwind app ini lewat
-`components/tableToolbar.js`. Tombol **Riwayat** toggle (bukan popup terpisah — app ini belum
-punya komponen modal) antara daftar aktif & mode riwayat, di-refetch dari server tiap toggle
+`components/tableToolbar.js`. Tombol **Riwayat** toggle (bukan popup terpisah — waktu ini
+ditulis app belum punya komponen modal, lihat `components/modal.js` yang ditambah belakangan
+utk "Detail Surat Jalan" di bawah) antara daftar aktif & mode riwayat, di-refetch dari server tiap toggle
 (**server-side**, bukan filter client-side lagi sejak pagination ditambahkan — lihat di bawah):
 - Tab SPK: aktif = `GET /admin/spk-belum-sj`; riwayat = `GET /admin/sj`. Baik aktif maupun
   riwayat, hasilnya di-"flatten" client-side jadi 1 baris tabel PER SPK yang disentuh tiap SJ
@@ -279,9 +290,9 @@ halaman (bukan patch DOM parsial) — konsisten dengan pola `adminDashboard.js` 
 (`ekspedisi-apk-backend`, lihat di atas) bikin tab SJ berpotensi punya 1.500+ baris; fetch semua
 tanpa batas jadi berat. `components/tableToolbar.js` sekarang terima `searchValue`/`onSearch`
 opsional (kotak cari muncul di bawah bar gelap kalau `onSearch` diisi, debounced ~400ms sambil
-ngetik + langsung saat Enter); `components/pagination.js` (baru) render kontrol
-Sebelumnya/Selanjutnya + "X-Y dari Z" di bawah `<table>` (otomatis sembunyi kalau cuma 1
-halaman). Kedua halaman (`adminSpkBelumSj.js`/`adminSuratJalan.js`) simpan state `page`/`query`
+ngetik + langsung saat Enter); `components/pagination.js` (baru, tampilannya sendiri direvisi
+2026-08-20 -- lihat bagian "Pagination dirampingkan" di bawah) render kontrol nav di bawah
+`<table>` (otomatis sembunyi kalau cuma 1 halaman). Kedua halaman (`adminSpkBelumSj.js`/`adminSuratJalan.js`) simpan state `page`/`query`
 di closure, kirim ke `GET /admin/sj`/`GET /admin/spk-belum-sj` via query string
 (`?q=&page=&per_page=`) — **breaking change** kontrak respons kedua endpoint itu, dari array
 polos jadi `{ data, total, page, per_page }` (lihat README `ekspedisi-apk-backend`). `per_page`
@@ -297,6 +308,175 @@ di kedua tabel dikasih `whitespace-nowrap` (konten tidak pernah wrap, tabel scro
 lewat `overflow-x-auto` di wrapper-nya kalau kepanjangan) — sama seperti kolom-kolom sempit
 fixed-width di tabel `surat-jalan-apk`.
 
+**Scroll cuma di badan tabel, bukan seluruh halaman (2026-08-20)** — wrapper `<table>` di kedua
+halaman (`adminSpkBelumSj.js`/`adminSuratJalan.js`) diganti dari `overflow-x-auto` polos jadi
+`max-h-[65vh] overflow-auto` + `<thead>` `sticky top-0 z-10`. Karena wrapper ini sekarang punya
+tinggi terbatas, begitu baris tabel melebihi itu, YANG SCROLL cuma area badan tabel di dalam
+wrapper (header ikut "nempel" di atas krn sticky) — toolbar (judul/cari/Refresh/Riwayat) di atas
+& kontrol paginasi di bawah wrapper selalu kelihatan tanpa perlu scroll dokumen. Ini cuma ganti
+class CSS di wrapper, bukan restrukturisasi DOM `<table>` (`sticky` posisinya relatif ke wrapper
+yang overflow, bukan ke viewport). Total data TIDAK berubah/berkurang krn ini (badge "Data | ..."
+di toolbar & paginasi di bawah tetap dari `total` server apa adanya) -- konsekuensinya cuma lebih
+SEDIKIT baris yang kelihatan sekaligus tanpa scroll dibanding sebelumnya (dulu bisa scroll
+sepanjang HALAMAN buat lihat semua 20 baris/halaman, sekarang cuma sepanjang box `65vh`).
+
+**Scrollbar wrapper dibuat selalu kelihatan (2026-08-20, susulan)** — kelas `.scroll-area`
+(`style.css`) nambahin `scrollbar-width: thin`/`::-webkit-scrollbar` ke wrapper di atas, supaya
+scrollbar-nya TIDAK disembunyikan seperti default banyak WebView (termasuk Cordova Android) yang
+baru nongol pas jari benar-benar menyentuh area itu. Tanpa ini, box `max-h-[65vh]` yang cuma
+menampilkan segelintir baris bisa gampang disalahartikan sebagai "datanya cuma sedikit" padahal
+sisanya ada, tinggal di-scroll di dalam box itu -- total sungguhan tetap utuh (lihat toolbar/paginasi).
+
+**Pagination dirampingkan (2026-08-20)** — `components/pagination.js` sebelumnya tombol teks
+penuh "Sebelumnya"/"Selanjutnya" + baris "X-Y dari Z", sekarang cuma **2 tombol panah** (ikon,
+persegi, kiri/kanan) + pecahan **"halaman sekarang/total halaman"** di tengah (mis. "1/20") —
+"X-Y dari Z" dianggap tidak perlu, jumlah total tetap kelihatan dari badge "Data | ..." di
+toolbar atasnya. Props komponen (`page`/`perPage`/`total`/`onPageChange`) tidak berubah, jadi
+kedua pemanggil (`adminSpkBelumSj.js`/`adminSuratJalan.js`) tidak perlu ikut disentuh.
+
+**Nama klien di-Judul Case-kan (2026-08-20)** — `client_nama` (`m_client`, backend-production)
+ternyata tidak konsisten casing-nya di data produksi (mis. "BAHA INDONESIA" ALL CAPS vs "armain
+travel" huruf kecil semua, dicek langsung ke database). `formatSpkNo()`'s sibling baru
+`toTitleCase()` (`src/js/format.js`) menyeragamkan jadi "Baha Indonesia"/"Armain Travel" tiap kali
+ditampilkan — kolom "Perusahaan" tab SPK, kolom "Klien" tab SJ (`adminSuratJalan.js`, tiap nama
+di `client_names` sebelum digabung `" | "`). MURNI transformasi tampilan, TIDAK mengubah data
+aslinya.
+
+**Tabel SJ dirampingkan + modal "Detail Surat Jalan" (2026-08-20)** — kolom `adminSuratJalan.js`
+sebelumnya (No SJ + info trip/SPK, Tujuan/Supir/Penerima gabung, Kirim breakdown, Tanggal
+dibuat+kirim, Status+badge "Data Lama"+info validasi, Foto) dipangkas jadi **No SJ, Tujuan,
+Klien, Dikirim, Status, Aksi** saja — info sekunder (Supir/kendaraan/plat, Penerima, breakdown
+Kirim per produk, tanggal Dibuat, badge "Data Lama", info validasi, kedua foto) dipindah ke modal
+baru **"Detail Surat Jalan"**, dipicu tombol **Detail** (kolom Aksi, di samping tombol Validasi
+yang sudah ada) — lihat `detailBodyHtml()` & `components/modal.js` (komponen modal PERTAMA app
+ini, generik: overlay + panel, sheet dari bawah di mobile/dialog center di `sm:` ke atas, tutup
+lewat klik overlay/tombol X/Esc). Modal dibangun ulang dari `sj` di closure tiap kali tombol
+diklik (bukan live-bound ke elemen tabel) — begitu aksi Validasi sukses, `sj` di-`Object.assign`
+dgn response terbaru duluan supaya kalau Detail dibuka SESUDAHNYA datanya sudah sinkron
+(status/foto_validasi/nama_validator/divalidasi_at), tanpa perlu re-fetch tabelnya.
+
+**Kolom Klien (2026-08-20, baru)** — nama klien dari SPK yang disentuh SJ itu, digabung
+**"Klien 1 | Klien 2"** (bukan baris baru per klien) kalau >1 SPK/klien tersentuh, supaya lebar
+baris tetap 1 baris (tidak menurun) — konsisten dgn kolom lain yang `whitespace-nowrap`. Datanya
+dari field baru `client_names` (array) di response `GET /admin/sj` — lihat
+`App\Support\SuratJalan::resolveClientNames()` di README `ekspedisi-apk-backend` (JOIN
+`t_penjualan_header`/`m_client`, sumber SPK-nya dari `items[].penjualan_id` kalau ada, fallback
+ke `penjualan_id` header utk SJ trip-linked lama yang tidak py breakdown item).
+
+## Tab Ekspedisi jadi murni monitoring (2026-08-20)
+
+**Keputusan produk:** dengan tab SPK & SJ sudah ada, halaman **"Plot SPK ke Supir"**
+(`adminSpkKirim.js`, `#/admin/spk-kirim`, dulu drill-down dari tab Ekspedisi) dianggap **redundan**
+— supir melekat ke pengiriman (SJ), pengiriman melekat ke SPK, jadi tidak perlu langkah plotting
+TERPISAH SEBELUM SJ ada lagi. File & route-nya **DIHAPUS** sepenuhnya (lihat detail penuh &
+alasan lengkap di README `ekspedisi-apk-backend`, bagian "Tab Ekspedisi jadi murni monitoring").
+
+`adminDashboard.js` (tab "Ekspedisi") sekarang **murni monitoring** — peta live + list cuma
+nampilin supir yang **SEDANG mengirim** (`GET /admin/drivers` di-filter server-side sejak
+perubahan ini, dulu balikin SEMUA supir tanpa syarat). Perubahan konkret di halaman ini:
+- Tombol "Plot SPK ke Supir" di atas "Daftar Supir" **dihapus**; judul sidebar diganti **"Sedang
+  Mengirim"** (lebih jujur soal isinya sekarang — bukan daftar SEMUA supir lagi).
+- Fallback teks per baris (`current_step_label` kosong) diganti dari "Tidak ada perjalanan aktif"
+  jadi **"Sedang mengirim"** — teks lama sudah tidak masuk akal krn baris yang tampil di sini
+  sekarang PASTI lagi mengirim (kalau tidak, ya tidak akan ada di respons sama sekali).
+- **Fix bug marker peta menumpuk** — sejak `GET /admin/drivers` cuma balikin supir aktif, seorang
+  supir bisa "hilang" dari respons berikutnya begitu pengirimannya selesai (dulu tidak pernah
+  terjadi, respons selalu berisi SEMUA supir). `refresh()` sekarang bandingkan id supir yang ada
+  di respons TERBARU vs marker Leaflet yang sedang nempel di peta (`markers` object) — id yang
+  sudah tidak ada di respons dihapus markernya (`map.removeLayer`) sebelum render ulang, supaya
+  peta tidak numpuk marker supir yang sebenarnya sudah tidak relevan.
+- Tambah state kosong (`emptyStateHtml()`) di sidebar kalau memang tidak ada supir yang sedang
+  mengirim sama sekali (skenario yang jadi lumrah sekarang, dulu jarang terjadi krn selalu
+  nampilin semua supir).
+
+**Assignment sekarang murni lewat field "Supir" (WAJIB) di form "Buat Surat Jalan"**
+(`adminNewSuratJalan.js`) — tidak ada perubahan di form itu sendiri (field & alurnya SAMA seperti
+sebelumnya), yang berubah di baliknya: begitu SJ tersimpan dgn supir **internal**, backend
+OTOMATIS bikin trip & menautkannya (lihat `POST /admin/sj` di README `ekspedisi-apk-backend`) —
+supir itu tetap bisa lihat tugasnya & checkpoint foto sendiri lewat dashboard/`driverWorkflow.js`
+di app-nya, PERSIS seperti kalau dulu di-plot manual, cuma sekarang otomatis tanpa langkah
+terpisah. Supir eksternal sengaja TIDAK dibikinkan trip (tidak bisa login/checkpoint apa pun) —
+status "sedang mengirim"-nya di tab Ekspedisi dibaca langsung dari status SJ, bukan dari trip.
+
+## Master perusahaan ekspedisi eksternal (2026-08-20)
+
+Layar baru **"Kelola Ekspedisi"** (`adminEkspedisiList.js`, `#/admin/ekspedisi/kelola`,
+drill-down dari tab Ekspedisi — link "Kelola Ekspedisi" di sebelah "+ Tambah Supir") — tabel
+Kode/Nama/PIC/No Telp/Status + tombol "+ Tambah" & "Edit" per baris (keduanya buka modal yang
+sama, `openForm()`, cuma beda judul & nilai awal), checkbox "Tampilkan nonaktif" toggle query
+`?all=1`. Field `is_active` cuma muncul di modal Edit (perusahaan baru selalu mulai aktif) --
+"nonaktifkan" (bukan hapus) lewat checkbox itu, submit-nya `PUT`.
+
+Backend-nya (lihat README `ekspedisi-apk-backend` bagian "Master perusahaan ekspedisi eksternal")
+sekarang tabel LOKAL (`ekspedisi_m_ekspedisi`) — dulu `GET /admin/ekspedisi` baca `m_expedisi`
+milik backend-production (READ-ONLY, `id_expedisi`/`kode_expedisi`/`nama_expedisi`); field-nya
+ikut berganti nama (`id`/`kode_ekspedisi`/`nama_ekspedisi`) — makanya dropdown "Perusahaan
+Ekspedisi" di `adminNewDriver.js` (satu-satunya konsumen lama) disesuaikan (`e.id_expedisi` ->
+`e.id`, `e.nama_expedisi` -> `e.nama_ekspedisi`).
+
+**`components/modal.js` diperluas (2026-08-20, susulan)** — sebelumnya `renderModal()` cuma
+balikin `{ close }` (cukup buat "Detail Surat Jalan" yang murni tampilan, tidak ada elemen buat
+di-bind ulang). Sekarang juga balikin `$body` (elemen `.p-4` pembungkus `bodyHtml`, ditandai
+`data-modal-body`) supaya pemanggil bisa `$body.find(...)` & bind event handler (submit form,
+dst) SETELAH modal-nya kepasang ke DOM — dipakai `adminEkspedisiList.js` buat form Tambah/Edit.
+Perubahan ini backward-compatible (properti tambahan di objek return, pemanggil lama yang cuma
+pakai `close` tidak perlu diubah).
+
+## Topbar dirombak: jam berjalan + back dipisah dari topbar (2026-08-20)
+
+`components/navbar.js` (`renderNavbar()`, dipakai SEMUA halaman) dapat 2 perubahan struktural:
+
+- **Tombol back TIDAK LAGI nempel di dalam topbar hijau.** Dulu ada di kiri judul, sekarang jadi
+  bar TERPISAH (putih, `border-b`) tepat di bawah topbar — cuma dirender kalau `opts.onBack`
+  diisi (halaman drill-down: Detail Supir, Perjalanan Baru, Tambah Supir, Buat Surat Jalan,
+  Kelola Ekspedisi). Topbar sendiri jadi murni identitas/status (connection indicator, judul,
+  nama user, jam, logout) — tidak ada elemen navigasi campur di situ lagi. 3 halaman ROOT admin
+  (tab SPK/SJ/Ekspedisi, pakai `adminTabs.js` bukan `onBack`) tidak terpengaruh, sama sekali
+  tidak pernah punya tombol back.
+- **Jam berjalan** (baru) — tanggal + jam realtime di kiri tombol logout, tanggal DI ATAS jam.
+  Format tanggal `13 Des 26` (tanggal + bulan Indonesia disingkat + tahun 2-digit, daftar nama
+  bulan lokal `MONTHS_ID` di file yang sama, BUKAN `toLocaleDateString` krn perlu format
+  spesifik yang beda dari bawaan browser), jam `23:00:01` (`HH:mm:ss`, 24 jam, `tabular-nums`
+  biar angka tidak "goyang" tiap detik ganti). Update tiap detik (`setInterval` 1000ms) --
+  timer dibersihkan pas pindah halaman lewat listener `hashchange` sekali-pakai, pola SAMA
+  persis dgn auto-refresh `adminDashboard.js`/polling `adminSpkBelumSj.js` (`renderNavbar()`
+  dipanggil di HAMPIR SEMUA halaman, jadi kalau timer-nya tidak dibersihkan bakal numpuk banyak
+  interval berjalan sekaligus tiap kali pindah halaman).
+
+## Tombol kolom "Aksi" disamakan ukurannya (2026-08-20)
+
+Kelas baru `.btn-table-action` (`style.css`, `@layer components`) — `w-28` (lebar TETAP, apa pun
+labelnya) + padding/font seragam, dipakai gantiin class ad-hoc yang beda-beda panjang sebelumnya
+di tombol "Detail"/"Validasi" (`adminSuratJalan.js`), "Surat Jalan" (`adminSpkBelumSj.js`), "Edit"
+(`adminEkspedisiList.js`) — SEBELUMNYA "Validasi" pakai `btn-ghost` (padding lebih besar) sementara
+lainnya rounded-lg biasa, jadi baris tabel kelihatan "bergerigi" kalau 2 tombol Aksi tampil
+sekaligus (mis. Detail+Validasi) dgn panjang beda. Cuma UKURAN yang dipaksa sama lewat kelas ini
+-- warna/tone (`bg-slate-100`.../`border border-slate-200`...) tetap ditentukan tiap pemanggil
+sesuai konteksnya masing-masing (mis. Validasi tetap dibedakan visualnya dari Detail, cuma
+sekarang framenya sama besar).
+
+## Tab Ekspedisi: label & tombol block (2026-08-20)
+
+- Judul sidebar "Sedang Mengirim" -> **"Berjalan"** (`adminDashboard.js`).
+- "Kelola Ekspedisi" (link teks polos) -> **ikon list + "Ekspedisi"**, dan "+ Tambah Supir" ->
+  **ikon plus + "Supir"** -- keduanya diganti jadi tombol BLOK (`rounded-lg` + background +
+  padding, konsisten dgn gaya tombol lain di app ini) alih-alih link teks polos kayak sebelumnya.
+  Ikon SVG lokal (`LIST_ICON`/`PLUS_ICON`, pola sama dgn `components/tableToolbar.js` -- tiap
+  file re-declare ikonnya sendiri, konsisten dgn duplikasi ringan yang sudah jadi kebiasaan di
+  app ini drpd bikin modul ikon terpisah utk 2 SVG kecil).
+
+## Urutan & isi kolom tabel disesuaikan (2026-08-20)
+
+- **Tab "SPK" (`adminSpkBelumSj.js`)** — kolom **SPK dipindah ke PALING KIRI** di kedua mode
+  (dulu di tengah: Perusahaan/Kota Tujuan/**SPK**/Kirim/Aksi di mode aktif, No SJ/**SPK**/Tujuan/
+  Status/Tanggal di mode riwayat). Cuma urutan kolom `<th>`/`<td>` yang ditukar, data & endpoint-
+  nya tidak berubah sama sekali.
+- **Tab "SJ" (`adminSuratJalan.js`)** — kolom **Tujuan dihapus dari tabel** (sekarang: No SJ,
+  Klien, Dikirim, Status, Aksi). Datanya TIDAK hilang — dipindah jadi baris tersendiri di modal
+  "Detail Surat Jalan" (`detailBodyHtml()`, section baru sebelum "Supir & Kendaraan"), sama pola
+  dgn perampingan kolom sebelumnya (Supir/Kirim/Foto/dst) — konsisten dgn keputusan "tabel cuma
+  info yang perlu dilihat sekilas, detail lengkap di modal".
+
 ## Routing & role guard
 
 `main.js` mendaftarkan route lewat `registerRoute(path, render, { roles, public })`:
@@ -308,11 +488,11 @@ fixed-width di tabel `surat-jalan-apk`.
 | `#/driver/trip/:tripId` | `driverWorkflow.js` | `driver` |
 | `#/admin` | `adminSpkBelumSj.js` | `admin` — **tab "SPK", halaman awal admin** setelah login (juga home role-mismatch redirect, lihat di bawah) |
 | `#/admin/ekspedisi` | `adminDashboard.js` | `admin` — tab "Ekspedisi" |
+| `#/admin/ekspedisi/kelola` | `adminEkspedisiList.js` | `admin` — kelola master perusahaan ekspedisi eksternal |
 | `#/admin/sj` | `adminSuratJalan.js` | `admin` — tab "SJ" |
 | `#/admin/driver/new` | `adminNewDriver.js` | `admin` — **wajib didaftarkan sebelum** `:driverId` di bawah (lihat komentar `main.js`), kalau tidak `new` akan ketangkep sebagai `:driverId` |
 | `#/admin/driver/:driverId` | `adminDriverDetail.js` | `admin` |
 | `#/admin/driver/:driverId/trip/new` | `adminNewTrip.js` | `admin` |
-| `#/admin/spk-kirim` | `adminSpkKirim.js` ("Plot SPK ke Supir") | `admin` |
 | `#/admin/sj/new` | `adminNewSuratJalan.js` | `admin` — didaftarkan sebelum `/admin/sj` di `main.js`, mengikuti pola `driver/new` |
 
 **Tab bar SPK/SJ/Ekspedisi** (`components/adminTabs.js`) dipasang cuma di 3 halaman ROOT
@@ -380,8 +560,194 @@ Cordova CLI menyuntikkan file itu otomatis saat build.
 `usesCleartextTraffic` diaktifkan (perlu kalau `API_BASE_URL` masih http, bukan https, saat
 development).
 
-Sebelum rilis sungguhan, ganti placeholder di `config.xml`: `id="com.perusahaan.trackingsupir"`
+Sebelum rilis sungguhan, ganti placeholder di `config.xml`: `id="com.perusahaan.ekspedisi"`
 dan `<author email="dev@example.com">` masih nilai default template.
+
+### Dua bug build Android yang sudah pernah kejadian & sudah di-fix (2026-08-20)
+
+`platforms/android` sudah pernah digenerate di mesin dev ini (`cordova-android@15.1.0`, CLI
+global 13.0.0). `cordova build android` sempat gagal total dua kali berturut-turut, root cause-nya
+beda-beda, keduanya sekarang sudah ditangani otomatis:
+
+1. **`Could not load API for android project .../cordova/Api.js`** -- pesan generik ini
+   nyembunyiin error aslinya (`ReferenceError: module is not defined in ES module scope`, cuma
+   kelihatan kalau pakai `cordova build android --verbose`). Penyebab: `package.json` project ini
+   sengaja `"type": "module"` (dipakai `vite.config.js`/`postcss.config.js`/`tailwind.config.js`
+   yang pakai `import`/`export` tanpa ekstensi `.mjs`), tapi file-file platform Cordova
+   (`platforms/*/cordova/*.js`, mis. `Api.js`) SELALU CommonJS (`module.exports`) dan tidak punya
+   `package.json` sendiri buat nge-override -- jadi Node ikut nganggep mereka ES module juga
+   (Node cari `package.json` terdekat ke ATAS dari lokasi file yang di-`require`).
+   Fix: `fix-platform-type.cjs` (root project) nulis `{"type": "commonjs"}` ke
+   `platforms/<platform>/package.json` tiap platform yang ada. **`platforms/` di-gitignore &
+   digenerate ulang tiap `cordova platform add`**, jadi fix ini WAJIB dijalankan ulang tiap kali --
+   makanya sudah dipasang otomatis di depan `npm run cordova:prepare` / `cordova:android` /
+   `cordova:ios` (lihat `package.json`). Kalau pernah jalanin `cordova` langsung (bukan lewat
+   script npm di atas) dan ketemu error yang sama, jalankan manual: `npm run fix:platforms`.
+
+2. **`ParseError ... AttributePrefixUnbound?application&android:usesCleartextTraffic&android`**
+   saat task Gradle `:app:mergeDebugResources` -- Cordova nyalin SELURUH isi `config.xml`
+   (termasuk elemen `<edit-config>`/`<config-file>` yang isinya pakai atribut ber-prefix
+   `android:`, lihat baris `usesCleartextTraffic` & `uses-permission` di bagian platform android
+   atas) mentah-mentah ke `platforms/android/app/src/main/res/xml/config.xml` -- padahal
+   `<widget>` root di `config.xml` project ini nggak pernah deklarasi namespace `android:`
+   (cuma ada `xmlns:cdv`), jadi compiler resource Android (aapt2, strict/namespace-aware) nolak
+   filenya. Fix: tambahin `xmlns:android="http://schemas.android.com/apk/res/android"` di elemen
+   `<widget>` root `config.xml` (sudah dipasang). Fix ini permanen (bukan di `platforms/` yang
+   digenerate ulang) -- kalau ketemu error serupa lagi setelah nambah `android:...` attribute baru
+   di `config.xml`, cek dulu namespace-nya sudah dideklarasi apa belum, jangan curiga ke tempat
+   lain dulu.
+
+Verifikasi: `cordova build android` sukses penuh (`BUILD SUCCESSFUL`), APK debug ada di
+`platforms/android/app/build/outputs/apk/debug/app-debug.apk`.
+
+## Format nomor SPK (2026-08-20)
+
+`src/js/format.js` (`formatSpkNo()`) -- konversi `penjualan_id` asli (identifier backend, format
+`INV_{no_spk berpadding 0}` + opsional `-{urutan}` kalau order dipecah jadi beberapa baris
+performa, mis. `INV_01811-2`) jadi label ringkas `SPK-{no_spk tanpa leading zero}{-urutan kalau
+ada}` (mis. `SPK-1811-2`) buat SEMUA tampilan nomor SPK di app ini: tab "SPK" (kedua mode, dulu
+mode aktif malah pakai `no_spk` mentah dari `t_penjualan_header` -- field beda, kehilangan info
+urutan pemecahan order), modal "Detail Surat Jalan" (`adminSuratJalan.js`), riwayat perjalanan
+supir (`adminDriverDetail.js`), dan judul grup di form "Buat Surat Jalan" (`adminNewSuratJalan.js`).
+`penjualan_id` ASLI (bukan hasil format ini)
+tetap yang dikirim ke backend di semua request/lookup (`items[].penjualan_id`, `POST
+/admin/drivers/{driver}/trip`, dst) -- ini MURNI transformasi tampilan, bukan identifier baru.
+Field input "Nomor SPK" (`adminNewSuratJalan.js`, dipakai admin ketik/cari sebelum "+ Tambah")
+SENGAJA tidak ikut diformat -- itu tetap harus diisi `penjualan_id` asli (placeholder `Contoh:
+INV_01701-5`) krn itu yang dikirim ke `GET /admin/sj/spk/{penjualan_id}/items`. Kalau polanya
+tidak dikenali (bukan `INV_...`), `formatSpkNo()` fallback tampilkan apa adanya (tidak menelan
+data yang polanya beda).
+
+## Popup gambar / lightbox (2026-08-20)
+
+`components/lightbox.js` — overlay gelap penuh layar + gambar di tengah (`object-contain`),
+ditutup klik di mana pun/tombol X/Esc. Beda dari `components/modal.js` (panel putih, ada
+judul/konten terstruktur) — lightbox murni gambar, tanpa chrome. Dipasang via **1 delegated
+click listener** di `document` (`initLightboxDelegation()`, dipanggil sekali di `main.js`
+`bootstrap()`) utk **SEMUA** `<img data-lightbox>` di app ini — checkpoint foto (riwayat supir,
+`adminDriverDetail.js`), foto SJ/validasi (modal "Detail Surat Jalan", `adminSuratJalan.js`), dan
+preview foto yang baru diambil supir (`driverWorkflow.js`, sebelum lanjut ke checkpoint
+berikutnya). Sengaja delegated (bukan bind manual per elemen) — otomatis jalan juga utk `<img>`
+yang baru ditambah belakangan (mis. isi modal yang dirender ulang tiap dibuka), tidak perlu
+wiring tambahan di tiap halaman selain nempel atribut `data-lightbox` + kelas `cursor-zoom-in`.
+Logo login (`login.js`) SENGAJA tidak ikut — itu branding/chrome, bukan foto/dokumen yang perlu
+di-zoom. Sebelumnya thumbnail-thumbnail ini dibungkus `<a target="_blank">` (buka tab baru) —
+diganti lightbox in-app supaya tidak keluar dari konteks app (penting terutama di WebView
+Cordova, "tab baru" di sana pengalamannya kurang mulus).
+
+## Penyimpanan & format foto upload (2026-08-20)
+
+Semua foto yang diupload dari app ini (checkpoint trip, foto SJ/validasi) sekarang dikonversi ke
+**WEBP** di sisi backend sebelum disimpan (`App\Support\PhotoStorage::save()`, lihat README
+`ekspedisi-apk-backend`) — tidak ada perubahan di sisi frontend utk ini (`camera.js`/`api.js`
+tetap kirim blob foto asli apa adanya, konversi murni tanggung jawab server). Foto tersimpan di
+folder **per konteks masing-masing** di server (`public/uploads/trips/{trip_id}/` utk checkpoint
+supir, `public/uploads/sj/{id}/` utk foto SJ) — bukan folder baru, konvensi ini sudah ada
+sebelumnya, yang berubah cuma nama filenya: sekarang dinamai sesuai SLOT/perannya
+(`berangkat.webp`, `serah_terima.webp`, `sj.webp`, `bukti.webp`, `validasi.webp`) alih-alih
+timestamp, jadi re-upload ke slot yang sama TIMPA file lama, tidak numpuk sampah. Frontend tidak
+perlu tahu ekstensi filenya apa — selalu pakai `path`/URL yang dibalikin backend apa adanya
+(`fotoUrl()` di `adminSuratJalan.js`, `p.url` di `adminDriverDetail.js`), jadi perubahan ekstensi
+ini otomatis kompatibel tanpa perlu sentuh kode tampilannya.
+
+## Notifikasi "SPK baru" di tab SPK (2026-08-20)
+
+`adminSpkBelumSj.js` polling `GET /admin/spk-belum-sj` tiap 20 detik (`NEW_DATA_POLL_MS`, mirip
+pola auto-refresh 15 detik yang sudah ada di `adminDashboard.js`) — **independen** dari
+page/query/mode yang sedang ditampilkan user (per_page besar sendiri, 100, biar 1x ambil cukup
+mewakili semua SPK "belum ada SJ" yg ada). Baseline (`penjualan_id` yang sudah pernah kelihatan)
+diambil sekali di awal, TIDAK memicu notifikasi — cuma `penjualan_id` yang muncul SETELAH
+baseline yang dianggap "baru". Begitu ketemu, banner amber muncul di `$bannerSlot` (dipasang
+sengaja di LUAR `$main`, supaya tidak ikut kehapus tiap `render()` bikin ulang isi `$main` pas
+search/toggle/refresh) — "`<jumlah>` SPK baru siap dikirim, belum ada SJ." + tombol **"Muat
+Ulang"** yang reset ke mode aktif halaman 1 sekaligus bersihkan banner. Timer polling dibersihkan
+saat pindah halaman lewat listener `hashchange` sekali-pakai (pola sama persis dgn cleanup
+auto-refresh `adminDashboard.js`). Ini **notifikasi in-app saja** — tidak ada push notification
+(app harus terbuka di tab SPK/sedang jalan di background tab browser/WebView utk polling-nya
+jalan), sesuai lingkup "notifikasi sederhana" yang diminta; push notification sungguhan (mis.
+lewat FCM, buat notifikasi walau app tertutup) tetap tercatat sbg belum ada di bagian "Yang belum
+ada" di bawah.
+
+## Header tabel rata tengah (2026-08-20)
+
+Semua `<th>` di kedua tabel (`adminSpkBelumSj.js`/`adminSuratJalan.js`) diganti dari `text-left`
+jadi `text-center` — CUMA header, isi baris (`<td>`) TIDAK ikut berubah (tetap rata kiri, kolom
+"Aksi" tetap rata kanan). Class `py-2` (tanpa `.5`) dipakai sbg penanda buat bedain `<th>` dari
+`<td>` (`py-2.5`) saat replace massal, supaya body tabel tidak ikut kesenggol.
+
+## Dokumen supir: foto KTP/SIM/STNK (2026-08-20)
+
+Form "Tambah Supir" (`adminNewDriver.js`) sekarang minta foto dokumen, WAJIB sebelum submit —
+**SIM** utk SEMUA supir (internal maupun eksternal), **+ KTP & STNK** tambahan kalau tipe-nya
+eksternal (bukan pegawai, tidak ada identitas/aset kendaraan perusahaan yang sudah terverifikasi
+kayak supir internal). Tiap field dokumen dirender lewat `renderPhotoField()` (helper baru di
+file yang sama) — tombol "Ambil Foto" manggil `takePhoto()` (kamera native/fallback, SAMA persis
+dgn checkpoint foto supir & foto SJ), begitu berhasil tampil thumbnail preview (`data-lightbox`,
+bisa di-zoom sebelum submit) + tombol berubah jadi "Ganti Foto". Blob-nya ditahan di closure
+sampai form displit `submit` — **belum ada file dipilih = submit diblokir** duluan di sisi client
+(cek `getBlob()` tiap field wajib sesuai tipe) sebelum sempat hit API, dobel-dicek lagi di server
+(`POST /admin/drivers`, 422 kalau ada yang belum lengkap).
+
+Karena field-nya sekarang CAMPURAN teks (`username`/`nama`/dst) & file (Blob), request-nya
+otomatis jadi multipart — `api.postMultipart()` (baru, `api.js`) generik utk kasus ini, beda dari
+`api.uploadFile()` yang lama (asumsi cuma 1 field file bernama tetap `'photo'`).
+
+**Gap yang sengaja ditutup:** profil supir INTERNAL bisa ke-provision OTOMATIS saat login pertama
+(`SupirProfile::ensure()` di backend, dipanggil dari alur login) — **tanpa pernah lewat form
+"Tambah Supir" sama sekali**, jadi tidak ada titik mana pun dokumennya kesimpan. Halaman **Detail
+Supir** (`adminDriverDetail.js`) sekarang punya card "Dokumen" — SIM selalu tampil (semua tipe),
+KTP+STNK cuma kalau `tipe === 'eksternal'`. Tiap slot: kalau `foto_*` dari `GET
+/admin/drivers/:id` sudah terisi, tampilkan thumbnail (`data-lightbox`); kalau masih `null`,
+tombol **"Upload Foto"** yang langsung ambil+kirim foto begitu diklik (`POST
+/admin/drivers/:id/documents`, beda dari form Tambah Supir yang nunda kirim sampai submit —
+di sini drivernya SUDAH ADA, jadi upload langsung per-slot, mirip pola tombol "Validasi" SJ).
+
+## Cek versi app (2026-08-20)
+
+Pola yang SAMA dipakai app lain di workspace ini (`absensi-apk`, `finance-apk`, `admin-finance-apk`)
+— app polling backend tiap 30 detik nanya "versi saya masih boleh dipakai?", kalau tidak ->
+alert pesan dari server + paksa logout. `config_id` yang dipakai: **`VERSION_EKSPEDISI_PUSAT`**
+(lihat README `ekspedisi-apk-backend` bagian "Cek versi app" utk detail backend & skema tabel
+`config`-nya).
+
+**`src/js/versionCheck.js`** (`initVersionCheck()`, dipanggil sekali di `bootstrap()` `main.js`,
+BUKAN per-halaman kayak timer lain di app ini — jalan terus APA PUN halaman yang lagi dibuka) —
+`$.ajax` POST `/config/check-version` tiap 30 detik, body `{ current_version_code:
+CURRENT_APP_VERSION_CODE }`. Kalau respons `is_valid: false`: `alert(config.config_keterangan)`
+lalu `logout()` + `navigate('/login')`, timer di-`clearInterval` PERMANEN (tidak perlu cek lagi
+setelah user sudah dipaksa keluar). Gagal hubungi endpoint (offline/timeout) diam-diam diabaikan
+di siklus itu — SENGAJA tidak disamakan dgn "versi tidak valid", supaya masalah jaringan tidak
+memaksa logout orang yang justru butuh app-nya tetap jalan (mis. supir di lapangan, sinyal lemah).
+**Dilewati total kalau `MOCK_MODE: true`** (tidak ada backend nyata utk ditanya).
+
+**`src/js/app-version.js`** — **[AUTO-GENERATE, JANGAN diedit manual]** — `export const
+CURRENT_APP_VERSION_CODE`/`CURRENT_APP_VERSION_STRING`, ditulis ulang oleh **`bump-version.cjs`**
+(root repo, `.cjs` SENGAJA bukan `.js` — `package.json` app ini `"type": "module"`, `require()`
+polos di file `.js` bakal gagal). Jalankan lewat:
+```bash
+npm run version:patch    # 1.0.0 -> 1.0.1, android-versionCode naik 1
+npm run version:minor    # 1.0.0 -> 1.1.0
+npm run version:major    # 1.0.0 -> 2.0.0
+npm run version:custom -- 1.2.3   # set versi spesifik
+```
+Sekali jalan, update **3 file sekaligus** supaya konsisten: `config.xml` (`version`,
+`android-versionCode`, `ios-CFBundleVersion`), `package.json` (`version`), dan
+`src/js/app-version.js`. **TIDAK push otomatis ke server** — nilai `config_value_minimal` di
+tabel `config` (`config_id='VERSION_EKSPEDISI_PUSAT'`) HARUS diupdate manual terpisah (lewat SQL
+langsung, lihat README backend) kalau rilis itu memang wajib dipakai (baik cuma direkomendasikan,
+tanpa update DB versi lama tetap `is_valid: true` selamanya).
+
+Beda dari `bump-version.js` versi `finance-apk` (Cordova `<script>` tag polos, `var` global) --
+app ini Vite/ESM, `app-version.js` di sini pakai `export const` biasa, di-`import` langsung oleh
+`versionCheck.js` & ikut di-bundle Vite (bukan ditaruh manual sbg `<script>` di `index.html`).
+
+Adaptasi dari pola LAMA yang dipakai `absensi-apk` (`AbsenController::checkInternetAbsen()`,
+exact-match `config_value_string`, digabung sama urusan lain kayak ijin/last_login) —
+`ekspedisi-apk-backend` ikut konvensi TERBARU yang dipakai `finance-apk`/`admin-finance-apk`
+(`API\Config\VersionController` di `backend-production`): `current_version_code` **integer**
+(Android versionCode) dibandingkan `>=` ke `config_value_minimal`, bukan exact-match string --
+lebih fleksibel, admin bisa naikkan syarat minimal tanpa perlu tahu persis versi apa yang beredar
+di device masing-masing.
 
 ## Yang belum ada (di luar scope prototype ini)
 
@@ -399,5 +765,6 @@ dan `<author email="dev@example.com">` masih nilai default template.
   approve/reject dari sisi finance sama sekali (siapa berperan sebagai finance juga belum
   diputuskan). Detail lengkap ada di README `ekspedisi-apk-backend`.
 - Export laporan (Excel/PDF) riwayat perjalanan.
-- Ikon & splash screen aplikasi (`res/public/` isinya baru `logo_koperindo.jpeg` buat halaman
-  login, belum ada app icon/splash Cordova sungguhan).
+- Ikon & splash screen aplikasi (`public/` isinya baru `logo_koperindo.jpeg` buat halaman
+  login, belum ada app icon/splash Cordova sungguhan — itu nanti masuk `res/` terpisah,
+  konvensi Cordova, lihat catatan di bagian Tema di atas).

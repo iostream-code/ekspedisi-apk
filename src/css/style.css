@@ -23,6 +23,16 @@
     @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3.5
            font-display font-semibold text-ink active:scale-[0.98] transition;
   }
+  /* Tombol kolom "Aksi" di tabel (Detail/Validasi/Surat Jalan/Edit, dst) --
+     lebar SAMA (w-28) apa pun labelnya, supaya baris tabel tidak kelihatan
+     "bergerigi" krn panjang tombol beda-beda (2026-08-20). Cuma ukuran/lebar
+     yang dipaksa sama di sini -- warna/tone tetap ditentukan pemanggil
+     (kombinasikan dengan bg-slate-100/border dst sesuai konteks tombolnya).
+   */
+  .btn-table-action {
+    @apply inline-flex w-28 shrink-0 items-center justify-center rounded-lg px-2 py-1.5
+           text-center text-xs font-semibold transition;
+  }
   .card {
     @apply rounded-2xl bg-white shadow-card;
   }
@@ -92,4 +102,27 @@
 @keyframes pulse-red {
   0%, 100% { opacity: 1; box-shadow: 0 0 8px #ff0000, 0 0 16px #ff0000; }
   50% { opacity: 0.4; box-shadow: 0 0 4px #ff0000, 0 0 8px #ff0000; }
+}
+
+/* Wrapper tabel dgn scroll internal (adminSpkBelumSj.js/adminSuratJalan.js,
+   lihat max-h-[65vh] overflow-auto) -- scrollbar dibuat SELALU KELIHATAN
+   (bukan cuma muncul pas discroll) supaya jelas masih ada baris di bawah yang
+   belum kelihatan, krn banyak WebView (termasuk Cordova Android) default-nya
+   menyembunyikan scrollbar sampai jari benar-benar menyentuh area itu -- tanpa
+   ini gampang disalahartikan datanya cuma sedikit padahal cuma soal tinggi
+   box yang dibatasi. */
+.scroll-area {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: theme('colors.slate.300') transparent;
+}
+.scroll-area::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-area::-webkit-scrollbar-thumb {
+  background-color: theme('colors.slate.300');
+  border-radius: 9999px;
+}
+.scroll-area::-webkit-scrollbar-track {
+  background: transparent;
 }

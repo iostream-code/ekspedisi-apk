@@ -6,12 +6,14 @@ import { renderAdminDashboard } from './pages/adminDashboard.js';
 import { renderAdminDriverDetail } from './pages/adminDriverDetail.js';
 import { renderAdminNewTrip } from './pages/adminNewTrip.js';
 import { renderAdminNewDriver } from './pages/adminNewDriver.js';
-import { renderAdminSpkKirim } from './pages/adminSpkKirim.js';
+import { renderAdminEkspedisiList } from './pages/adminEkspedisiList.js';
 import { renderAdminSpkBelumSj } from './pages/adminSpkBelumSj.js';
 import { renderAdminSuratJalan } from './pages/adminSuratJalan.js';
 import { renderAdminNewSuratJalan } from './pages/adminNewSuratJalan.js';
 import { APP_CONFIG } from './config.js';
 import { login, isAuthenticated } from './auth.js';
+import { initLightboxDelegation } from './components/lightbox.js';
+import { initVersionCheck } from './versionCheck.js';
 
 registerRoute('/login', renderLogin, { public: true });
 registerRoute('/driver', renderDriverDashboard, { roles: ['driver'] });
@@ -23,7 +25,7 @@ registerRoute('/admin/ekspedisi', renderAdminDashboard, { roles: ['admin'] });
 // WAJIB didaftarkan SEBELUM '/admin/driver/:driverId' -- router.js first-match-wins,
 // dan pattern :driverId juga akan "menangkap" literal 'new' sebagai id kalau urutannya kebalik.
 registerRoute('/admin/driver/new', renderAdminNewDriver, { roles: ['admin'] });
-registerRoute('/admin/spk-kirim', renderAdminSpkKirim, { roles: ['admin'] });
+registerRoute('/admin/ekspedisi/kelola', renderAdminEkspedisiList, { roles: ['admin'] });
 // WAJIB didaftarkan SEBELUM '/admin/sj' kalau nanti ada '/admin/sj/:id' -- saat
 // ini belum ada, tapi urutan ini disiapkan biar konsisten dgn pola driver/new di atas.
 registerRoute('/admin/sj/new', renderAdminNewSuratJalan, { roles: ['admin'] });
@@ -32,6 +34,19 @@ registerRoute('/admin/driver/:driverId', renderAdminDriverDetail, { roles: ['adm
 registerRoute('/admin/driver/:driverId/trip/new', renderAdminNewTrip, { roles: ['admin'] });
 
 async function bootstrap() {
+  // Popup gambar (lightbox) utk SEMUA <img data-lightbox> di app ini (2026-08-20)
+  // -- 1 delegated listener di document, jalan utk elemen manapun/kapan pun
+  // dirender (termasuk isi modal), lihat components/lightbox.js.
+  initLightboxDelegation();
+
+  // Cek versi app (2026-08-20) -- pola sama dgn absensi-apk/finance-apk/
+  // admin-finance-apk, config_id='VERSION_EKSPEDISI_PUSAT'. Jalan GLOBAL
+  // (bukan per-halaman kayak timer lain di app ini) -- sekali mulai di
+  // bootstrap, terus polling tiap 30 detik APA PUN halaman yang lagi
+  // dibuka, sampai ketahuan tidak valid (baru berhenti permanen) atau app
+  // ditutup. Lihat versionCheck.js.
+  initVersionCheck();
+
   // Bypass login untuk demo: isi APP_CONFIG.AUTO_LOGIN_ROLE ('driver'/'admin') di config.js.
   const wantsBypass = APP_CONFIG.MOCK_MODE && APP_CONFIG.AUTO_LOGIN_ROLE && !isAuthenticated();
   if (wantsBypass) {

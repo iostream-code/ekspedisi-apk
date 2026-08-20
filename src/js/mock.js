@@ -30,12 +30,18 @@ const store = {
     { id: 4, tipe: 'internal', name: 'Slamet Riyadi', status: 'online', lat: jitter(BASE_LAT), lng: jitter(BASE_LNG) },
     { id: 5, tipe: 'eksternal', name: 'Herman (Ekspedisi Jaya)', status: 'offline', lat: null, lng: null },
   ],
+  nextEkspedisiId: 2,
+  // Master perusahaan ekspedisi eksternal (ekspedisi_m_ekspedisi, MILIK app
+  // ini sendiri -- 2026-08-20, lihat App\Support\Ekspedisi di driver-apk-backend).
+  ekspedisi: [
+    { id: 1, kode_ekspedisi: 'EXP-20260418-7620', nama_ekspedisi: 'Ekspedisi Jaya', pic: 'Supriyadi', alamat: null, no_telp: '08123456789', is_active: 1 },
+  ],
   nextSjId: 2,
   // Modul surat jalan MILIK app ini sendiri (ekspedisi_t_surat_jalan) -- lihat
   // App\Support\SuratJalan di driver-apk-backend, bentuk field sama persis.
   suratJalan: [
     {
-      id: 1, no_surat_jalan: 'SJ-20260819-0001', trip_id: 101, penjualan_id: null,
+      id: 1, no_surat_jalan: 'SJ-20260819-0001', trip_id: 101, penjualan_id: 'INV_01701-5',
       driver_id: 1, nama_supir: 'Budi Santoso', tujuan: 'Gudang Sidoarjo -> Toko Makmur Jaya',
       kendaraan: null, plat: null, penerima: null, jumlah_kirim: null, tgl_kirim: null,
       foto_surat_jalan: null, foto_validasi: null, divalidasi_oleh: null, divalidasi_at: null,
@@ -56,12 +62,6 @@ const store = {
     },
   ],
 };
-
-// Dummy daftar ekspedisi buat demo GET /admin/ekspedisi (lihat ExpedisiLookup
-// di driver-apk-backend -- bentuk field sama persis).
-const DUMMY_EKSPEDISI = [
-  { id_expedisi: 10, kode_expedisi: 'EXP-20260418-7620', nama_expedisi: 'Ekspedisi Jaya', pic: 'Supriyadi', no_telp: '08123456789' },
-];
 
 // Seed 2 perjalanan aktif buat driver id=1, biar waktu demo dashboard supir langsung
 // kelihatan mendukung lebih dari 1 perjalanan aktif.
@@ -113,6 +113,18 @@ const DUMMY_PENJUALAN_ITEMS = {
     { penjualan_detail_performa_id: 503, penjualan_jenis: 'Tas Ransel', penjualan_qty: 20, terkirim: 20, sisa: 0 },
   ],
 };
+
+// Nama klien per penjualan_id (SPK) -- meniru App\Support\SuratJalan::
+// resolveClientNames() di driver-apk-backend (join t_penjualan_header/
+// m_client di sana, di sini cukup lookup dari DUMMY_SPK_READY_KIRIM krn
+// itu satu-satunya sumber data SPK dummy yang ada). Dipakai kolom "Klien"
+// GET /admin/sj -- gabungan "Klien 1 | Klien 2" kalau >1 SPK/klien tersentuh.
+const SPK_CLIENT_BY_ID = Object.fromEntries(DUMMY_SPK_READY_KIRIM.map((s) => [s.penjualan_id, s.client_nama]));
+function clientNamesForSj(sj) {
+  const spkIds = [...new Set((sj.items || []).map((it) => it.penjualan_id).filter(Boolean))];
+  const ids = spkIds.length ? spkIds : (sj.penjualan_id ? [sj.penjualan_id] : []);
+  return [...new Set(ids.map((id) => SPK_CLIENT_BY_ID[id]).filter(Boolean))];
+}
 
 // Cari 1 lini produk by id, TERLEPAS dari SPK mana asalnya -- meniru
 // PenjualanItemLookup::findLine() di driver-apk-backend (dipakai POST
@@ -166,6 +178,13 @@ export function mockLogin(username) {
       name: isAdmin ? 'Admin Dispatcher' : 'Budi Santoso',
     },
   });
+}
+
+// Baca 1 field dari `data` -- bisa FormData (endpoint yang bawa file, mis.
+// upload foto) ATAU object biasa (endpoint JSON polos), lihat pola yang
+// sudah ada di handler POST /driver/trip/:id/photo.
+function field(data, key) {
+  return data && data.get ? data.get(key) : data?.[key];
 }
 
 export function mockRequest(rawPath, method, data) {
@@ -270,35 +289,106 @@ export function mockRequest(rawPath, method, data) {
     return deferred.promise();
   }
 
-  // GET /admin/drivers
+  // GET /admin/drivers -- tab "Ekspedisi" MURNI monitoring sejak 2026-08-20
+  // (bukan lagi tempat plotting supir) -- cuma balikin supir yang SEDANG
+  // mengirim: py trip aktif ATAU py SJ yang belum tervalidasi (draft/terkirim),
+  // meniru filter EXISTS/EXISTS di AdminController::drivers() (driver-apk-backend).
   if (method === 'GET' && path === '/admin/drivers') {
-    return delay(store.drivers.map((d) => {
+    const SJ_STEP_LABEL = { draft: 'Menunggu bukti kirim', terkirim: 'Dalam pengiriman' };
+    const sedangMengirim = store.drivers.filter((d) => {
+      const hasActiveTrip = tripsForDriver(d.id, 'in_progress').length > 0;
+      const hasActiveSj = store.suratJalan.some((sj) => sj.driver_id === d.id && ['draft', 'terkirim'].includes(sj.status));
+      return hasActiveTrip || hasActiveSj;
+    });
+    return delay(sedangMengirim.map((d) => {
       const active = tripsForDriver(d.id, 'in_progress');
       let stepLabel = null;
-      if (active.length === 1) stepLabel = nextStepLabel(active[0]);
-      else if (active.length > 1) stepLabel = `${active.length} perjalanan aktif`;
+      if (active.length === 1) {
+        stepLabel = nextStepLabel(active[0]);
+      } else if (active.length > 1) {
+        stepLabel = `${active.length} perjalanan aktif`;
+      } else {
+        const sj = store.suratJalan.find((s) => s.driver_id === d.id && ['draft', 'terkirim'].includes(s.status));
+        if (sj) stepLabel = SJ_STEP_LABEL[sj.status];
+      }
       return { ...d, current_step_label: stepLabel };
     }));
   }
 
-  // POST /admin/drivers -> ADMIN tambah supir baru, internal (by username) atau eksternal
+  // POST /admin/drivers -> ADMIN tambah supir baru, internal (by username) atau eksternal.
+  // multipart (2026-08-20) -- SIM wajib (semua tipe), KTP+STNK wajib tambahan
+  // kalau eksternal, meniru validasi App\Controllers\AdminController::createDriver()/
+  // createDriverEksternal() di driver-apk-backend.
   if (method === 'POST' && path === '/admin/drivers') {
-    const tipe = data.tipe === 'eksternal' ? 'eksternal' : 'internal';
-    const newDriver = {
-      id: store.nextDriverId++,
-      tipe,
-      name: tipe === 'eksternal' ? data.nama : data.username,
-      status: 'offline',
-      lat: tipe === 'internal' ? jitter(BASE_LAT) : null,
-      lng: tipe === 'internal' ? jitter(BASE_LNG) : null,
-    };
-    store.drivers.push(newDriver);
-    return delay({ id: newDriver.id, name: newDriver.name, status: newDriver.status, tipe }, 400);
+    const tipe = field(data, 'tipe') === 'eksternal' ? 'eksternal' : 'internal';
+    const deferred = $.Deferred();
+    setTimeout(() => {
+      const required = tipe === 'eksternal' ? [['foto_ktp', 'KTP'], ['foto_sim', 'SIM'], ['foto_stnk', 'STNK']] : [['foto_sim', 'SIM']];
+      for (const [key, label] of required) {
+        if (!field(data, key)) {
+          deferred.reject({ responseJSON: { message: `Foto ${label} wajib diunggah.` } });
+          return;
+        }
+      }
+      const newDriver = {
+        id: store.nextDriverId++,
+        tipe,
+        name: tipe === 'eksternal' ? field(data, 'nama') : field(data, 'username'),
+        status: 'offline',
+        lat: tipe === 'internal' ? jitter(BASE_LAT) : null,
+        lng: tipe === 'internal' ? jitter(BASE_LNG) : null,
+        foto_sim: PLACEHOLDER_PHOTO,
+        foto_ktp: tipe === 'eksternal' ? PLACEHOLDER_PHOTO : null,
+        foto_stnk: tipe === 'eksternal' ? PLACEHOLDER_PHOTO : null,
+      };
+      store.drivers.push(newDriver);
+      deferred.resolve({ id: newDriver.id, name: newDriver.name, status: newDriver.status, tipe });
+    }, 400);
+    return deferred.promise();
   }
 
-  // GET /admin/ekspedisi -> daftar perusahaan ekspedisi aktif
+  // GET /admin/ekspedisi -> master perusahaan ekspedisi eksternal.
+  // ?all=1 -> semua (termasuk nonaktif, layar kelola); default cuma aktif (dropdown).
   if (method === 'GET' && path === '/admin/ekspedisi') {
-    return delay(DUMMY_EKSPEDISI, 200);
+    const list = query.all ? store.ekspedisi : store.ekspedisi.filter((e) => Number(e.is_active));
+    return delay(list, 200);
+  }
+
+  // POST /admin/ekspedisi -> tambah perusahaan ekspedisi baru
+  if (method === 'POST' && path === '/admin/ekspedisi') {
+    const deferred = $.Deferred();
+    setTimeout(() => {
+      const nama = String(field(data, 'nama_ekspedisi') || '').trim();
+      if (!nama) { deferred.reject({ responseJSON: { message: 'Nama perusahaan ekspedisi wajib diisi.' } }); return; }
+      const eks = {
+        id: store.nextEkspedisiId++,
+        kode_ekspedisi: field(data, 'kode_ekspedisi') || null,
+        nama_ekspedisi: nama,
+        pic: field(data, 'pic') || null,
+        alamat: field(data, 'alamat') || null,
+        no_telp: field(data, 'no_telp') || null,
+        is_active: 1,
+      };
+      store.ekspedisi.push(eks);
+      deferred.resolve(eks);
+    }, 400);
+    return deferred.promise();
+  }
+
+  // PUT /admin/ekspedisi/:id -> update/nonaktifkan perusahaan ekspedisi
+  m = path.match(/^\/admin\/ekspedisi\/(\d+)$/);
+  if (method === 'PUT' && m) {
+    const eks = store.ekspedisi.find((e) => e.id === Number(m[1]));
+    const deferred = $.Deferred();
+    setTimeout(() => {
+      if (!eks) { deferred.reject({ responseJSON: { message: 'Perusahaan ekspedisi tidak ditemukan.' } }); return; }
+      ['kode_ekspedisi', 'nama_ekspedisi', 'pic', 'alamat', 'no_telp'].forEach((key) => {
+        if (data[key] !== undefined) eks[key] = data[key];
+      });
+      if (data.is_active !== undefined) eks.is_active = data.is_active ? 1 : 0;
+      deferred.resolve(eks);
+    }, 400);
+    return deferred.promise();
   }
 
   // GET /admin/sj -> daftar surat jalan (modul milik app ini sendiri), query opsional q/status/page/per_page
@@ -313,7 +403,8 @@ export function mockRequest(rawPath, method, data) {
     const page = Number(query.page) || 1;
     const perPage = Number(query.per_page) || 20;
     const start = (page - 1) * perPage;
-    return delay({ data: list.slice(start, start + perPage), total: list.length, page, per_page: perPage }, 300);
+    const pageRows = list.slice(start, start + perPage).map((sj) => ({ ...sj, client_names: clientNamesForSj(sj) }));
+    return delay({ data: pageRows, total: list.length, page, per_page: perPage }, 300);
   }
 
   // GET /admin/sj/spk/:penjualan_id/items -> lini produk 1 SPK + sisa qty (lihat PenjualanItemLookup)
@@ -354,9 +445,21 @@ export function mockRequest(rawPath, method, data) {
       });
       const jumlahKirim = items.length ? items.reduce((sum, it) => sum + it.jumlah_kirim, 0) : (data.jumlah_kirim ? Number(data.jumlah_kirim) : null);
 
+      // Auto-bikin trip utk supir INTERNAL kalau belum ditautkan ke trip
+      // manapun (2026-08-20, gantiin langkah "Plot SPK ke Supir" yang
+      // dihapus -- lihat SuratJalanController::store() di driver-apk-backend)
+      // supaya demo tetap kelihatan supir muncul di dashboard-nya sendiri +
+      // tab Ekspedisi (monitoring). Supir eksternal sengaja tidak dibikinkan.
+      let tripId = data.trip_id ? Number(data.trip_id) : null;
+      if (!tripId && driver.tipe === 'internal') {
+        const spkIds = [...new Set(items.map((it) => it.penjualan_id).filter(Boolean))];
+        const trip = seedTrip(driver.id, data.tujuan || null, null, spkIds.length === 1 ? spkIds[0] : null);
+        tripId = trip.id;
+      }
+
       const sj = {
         id: store.nextSjId++,
-        trip_id: null,
+        trip_id: tripId,
         penjualan_id: null,
         driver_id: driver.id,
         nama_supir: driver.name,
@@ -424,7 +527,28 @@ export function mockRequest(rawPath, method, data) {
       created_at: new Date().toLocaleString('id-ID'),
       photos: t.completed_steps.map((type) => ({ type, url: PLACEHOLDER_PHOTO })),
     }));
-    return delay({ id: driver.id, tipe: driver.tipe, name: driver.name, phone: '08123456789', status: driver.status, trips });
+    return delay({
+      id: driver.id, tipe: driver.tipe, name: driver.name, phone: '08123456789', status: driver.status,
+      foto_sim: driver.foto_sim || null, foto_ktp: driver.foto_ktp || null, foto_stnk: driver.foto_stnk || null,
+      trips,
+    });
+  }
+
+  // POST /admin/drivers/:id/documents -> lengkapi/ganti dokumen (KTP/SIM/STNK) supir yang sudah ada
+  m = path.match(/^\/admin\/drivers\/(\d+)\/documents$/);
+  if (method === 'POST' && m) {
+    const driver = store.drivers.find((d) => d.id === Number(m[1]));
+    const deferred = $.Deferred();
+    setTimeout(() => {
+      if (!driver) { deferred.reject({ responseJSON: { message: 'Supir tidak ditemukan.' } }); return; }
+      let any = false;
+      ['foto_sim', 'foto_ktp', 'foto_stnk'].forEach((key) => {
+        if (field(data, key)) { driver[key] = PLACEHOLDER_PHOTO; any = true; }
+      });
+      if (!any) { deferred.reject({ responseJSON: { message: 'Tidak ada file dokumen yang diunggah.' } }); return; }
+      deferred.resolve({ foto_sim: driver.foto_sim || null, foto_ktp: driver.foto_ktp || null, foto_stnk: driver.foto_stnk || null });
+    }, 400);
+    return deferred.promise();
   }
 
   // POST /admin/drivers/:id/trip  -> ADMIN bikin perjalanan baru untuk supir tsb
@@ -434,13 +558,9 @@ export function mockRequest(rawPath, method, data) {
     return delay(formatTrip(trip), 400);
   }
 
-  // GET /admin/spk-ready-kirim -> daftar SPK siap diplot (lihat SpkReadyKirim di driver-apk-backend)
-  if (method === 'GET' && path === '/admin/spk-ready-kirim') {
-    return delay(DUMMY_SPK_READY_KIRIM, 300);
-  }
-
-  // GET /admin/spk-belum-sj -> tab "SPK" -- SPK ready-kirim yang belum ada SJ sama sekali
-  // (kriteria beda dari spk-ready-kirim di atas, lihat SpkReadyKirim::listBelumSj()).
+  // GET /admin/spk-belum-sj -> tab "SPK" -- SPK ready-kirim yang belum ada SJ sama sekali.
+  // ("Plot SPK ke Supir"/GET /admin/spk-ready-kirim DIHAPUS 2026-08-20 -- tab Ekspedisi
+  // sekarang murni monitoring, lihat mock GET /admin/drivers di atas.)
   // Dicek dari header penjualan_id (jalur trip-linked lama) DAN items[].penjualan_id
   // (jalur manual breakdown produk, bisa lintas SPK) -- sama seperti query aslinya.
   if (method === 'GET' && path === '/admin/spk-belum-sj') {

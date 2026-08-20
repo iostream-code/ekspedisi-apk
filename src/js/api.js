@@ -70,10 +70,44 @@ function uploadFile(path, fileBlob, fieldName, extraFields = {}) {
   });
 }
 
+/**
+ * POST multipart generik -- field CAMPURAN teks & file (Blob/File) dalam 1
+ * request, dipakai form yang butuh keduanya sekaligus (mis. Tambah Supir:
+ * username/nama TEKS + foto_sim/foto_ktp/foto_stnk FILE). Beda dari
+ * uploadFile() yang asumsi cuma 1 field file dgn nama field tetap.
+ * @param {string} path
+ * @param {Object<string, string|Blob|File|undefined>} fields - value undefined/null dilewati (field opsional yang tidak diisi)
+ */
+function postMultipart(path, fields) {
+  const formData = new FormData();
+  Object.entries(fields).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+    formData.append(key, value);
+  });
+
+  if (APP_CONFIG.MOCK_MODE) return mockRequest(path, 'POST', formData);
+
+  return $.ajax({
+    url: APP_CONFIG.API_BASE_URL + path,
+    method: 'POST',
+    data: formData,
+    processData: false,
+    contentType: false,
+    timeout: 60000,
+    headers: authHeaders(),
+  }).fail((xhr) => {
+    if (xhr.status === 401) {
+      logout();
+      window.location.hash = '#/login';
+    }
+  });
+}
+
 export const api = {
   get: (path) => request(path, 'GET'),
   post: (path, data) => request(path, 'POST', data),
   put: (path, data) => request(path, 'PUT', data),
   del: (path) => request(path, 'DELETE'),
   uploadFile,
+  postMultipart,
 };

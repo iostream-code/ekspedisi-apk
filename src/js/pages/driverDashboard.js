@@ -11,7 +11,7 @@ const STATUS_LABEL = {
 };
 
 export async function renderDriverDashboard($container) {
-  renderNavbar($container, 'Dashboard Supir');
+  renderNavbar($container, 'Supir');
 
   const $main = $(`<main class="flex-1 space-y-4 p-4">${pageLoaderHtml('Memuat data...')}</main>`);
   $container.append($main);

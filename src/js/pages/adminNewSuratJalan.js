@@ -5,6 +5,7 @@ import { api } from '../api.js';
 import { navigate } from '../router.js';
 import { takePhoto } from '../camera.js';
 import { consumePrefillPenjualanId } from '../prefill.js';
+import { formatSpkNo } from '../format.js';
 
 /**
  * Bikin surat jalan MANUAL dari layar admin -- tidak terikat trip manapun
@@ -134,7 +135,7 @@ export async function renderAdminNewSuratJalan($container) {
       const $group = $(`
         <div class="rounded-xl border border-slate-200 p-3">
           <div class="flex items-center justify-between">
-            <p class="text-sm font-semibold text-ink">SPK ${group.penjualanId}</p>
+            <p class="text-sm font-semibold text-ink">${formatSpkNo(group.penjualanId)}</p>
             <button type="button" class="btn-hapus-spk text-xs font-medium text-status-alert hover:underline">Hapus</button>
           </div>
           <div class="mt-2 space-y-2" data-lines></div>

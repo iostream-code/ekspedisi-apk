@@ -86,7 +86,7 @@ export async function renderDriverWorkflow($container, params) {
       const objUrl = URL.createObjectURL(photoBlob);
       $step.removeClass('active').addClass('done');
       $step.find('.route-marker').html('&#10003;');
-      $step.find('.thumb-slot').html(`<img src="${objUrl}" class="mt-1 h-20 w-20 rounded-lg object-cover" />`);
+      $step.find('.thumb-slot').html(`<img src="${objUrl}" data-lightbox class="mt-1 h-20 w-20 cursor-zoom-in rounded-lg object-cover" />`);
       $btn.remove();
       $step.append('<p class="mt-2 text-xs font-medium text-brand-600">Selesai dikirim</p>');
 

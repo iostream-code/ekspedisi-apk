@@ -6,7 +6,7 @@ import path from 'path';
 export default defineConfig({
   root: 'src',
   base: '',
-  publicDir: path.resolve(__dirname, 'res/public'),
+  publicDir: path.resolve(__dirname, 'public'),
   build: {
     outDir: path.resolve(__dirname, 'www'),
     emptyOutDir: true,
