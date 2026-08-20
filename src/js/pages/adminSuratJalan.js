@@ -15,6 +15,14 @@ const STATUS_CLASS = {
   tervalidasi: 'bg-brand-100 text-brand-700',
 };
 
+// Baris hasil migrate_legacy_surat_jalan.php (ekspedisi-apk-backend) simpan
+// foto sbg URL ABSOLUT ke host lama (https://indokoper.com/foto_surat_jalan/...)
+// -- beda dari baris native yang path-nya RELATIF ke API_BASE_URL app ini
+// sendiri. Jangan digabung dgn API_BASE_URL kalau sudah absolut.
+function fotoUrl(path) {
+  return /^https?:\/\//.test(path) ? path : `${APP_CONFIG.API_BASE_URL}/${path}`;
+}
+
 /**
  * Tab "SJ". Model tabel (bukan kartu), meniru pola toolbar "Data | jumlah +
  * tombol Refresh/Riwayat" di surat-jalan-apk (lihat components/tableToolbar.js).
@@ -122,12 +130,13 @@ export async function renderAdminSuratJalan($container) {
           <td class="whitespace-nowrap px-3 py-2.5 align-top text-slate-500">${tgl}${tglKirim ? `<br>kirim ${tglKirim}` : ''}</td>
           <td class="whitespace-nowrap px-3 py-2.5 align-top">
             <span class="rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CLASS[sj.status] || 'bg-slate-100 text-slate-600'}" data-status-badge>${STATUS_LABEL[sj.status] || sj.status}</span>
+            ${sj.asal === 'migrasi_legacy' ? '<span class="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500" title="Dimigrasi dari surat_jalan lama (backend-production)">Data Lama</span>' : ''}
             <div class="mt-1" data-validasi-info></div>
           </td>
           <td class="whitespace-nowrap px-3 py-2.5 align-top">
             <div class="flex gap-1.5" data-photos>
-              ${sj.foto_surat_jalan ? `<a href="${APP_CONFIG.API_BASE_URL}/${sj.foto_surat_jalan}" target="_blank"><img src="${APP_CONFIG.API_BASE_URL}/${sj.foto_surat_jalan}" class="h-12 w-12 rounded-lg border border-slate-200 object-cover" title="Foto lapangan" /></a>` : ''}
-              ${sj.foto_validasi ? `<a href="${APP_CONFIG.API_BASE_URL}/${sj.foto_validasi}" target="_blank"><img src="${APP_CONFIG.API_BASE_URL}/${sj.foto_validasi}" class="h-12 w-12 rounded-lg border-2 border-brand-400 object-cover" title="Foto validasi" /></a>` : ''}
+              ${sj.foto_surat_jalan ? `<a href="${fotoUrl(sj.foto_surat_jalan)}" target="_blank"><img src="${fotoUrl(sj.foto_surat_jalan)}" class="h-12 w-12 rounded-lg border border-slate-200 object-cover" title="Foto lapangan" /></a>` : ''}
+              ${sj.foto_validasi ? `<a href="${fotoUrl(sj.foto_validasi)}" target="_blank"><img src="${fotoUrl(sj.foto_validasi)}" class="h-12 w-12 rounded-lg border-2 border-brand-400 object-cover" title="Foto validasi" /></a>` : ''}
             </div>
           </td>
           <td class="whitespace-nowrap px-3 py-2.5 align-top" data-aksi></td>
@@ -158,7 +167,7 @@ export async function renderAdminSuratJalan($container) {
                 .text(STATUS_LABEL.tervalidasi);
               if (updated.foto_validasi) {
                 $tr.find('[data-photos]').append(
-                  `<a href="${APP_CONFIG.API_BASE_URL}/${updated.foto_validasi}" target="_blank"><img src="${APP_CONFIG.API_BASE_URL}/${updated.foto_validasi}" class="h-12 w-12 rounded-lg border-2 border-brand-400 object-cover" title="Foto validasi" /></a>`
+                  `<a href="${fotoUrl(updated.foto_validasi)}" target="_blank"><img src="${fotoUrl(updated.foto_validasi)}" class="h-12 w-12 rounded-lg border-2 border-brand-400 object-cover" title="Foto validasi" /></a>`
                 );
               }
               $tr.find('[data-validasi-info]').html(

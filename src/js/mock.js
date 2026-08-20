@@ -39,7 +39,20 @@ const store = {
       driver_id: 1, nama_supir: 'Budi Santoso', tujuan: 'Gudang Sidoarjo -> Toko Makmur Jaya',
       kendaraan: null, plat: null, penerima: null, jumlah_kirim: null, tgl_kirim: null,
       foto_surat_jalan: null, foto_validasi: null, divalidasi_oleh: null, divalidasi_at: null,
-      nama_validator: null, items: [], catatan: null, status: 'draft', created_at: new Date().toISOString(),
+      nama_validator: null, items: [], catatan: null, status: 'draft', asal: 'native',
+      created_at: new Date().toISOString(),
+    },
+    // Contoh baris hasil migrate_legacy_surat_jalan.php (ekspedisi-apk-backend)
+    // -- driver_id NULL (pengirim lama cuma teks bebas), foto URL ABSOLUT ke
+    // host lama (bukan disalin fisik), badge "Data Lama" muncul di list.
+    {
+      id: 2, no_surat_jalan: 'SJ_000499', trip_id: null, penjualan_id: null,
+      driver_id: null, nama_supir: null, tujuan: null,
+      kendaraan: 'Grandmax', plat: 'P 9012 XY', penerima: null, jumlah_kirim: 12, tgl_kirim: '2024-03-11',
+      foto_surat_jalan: 'https://indokoper.com/foto_surat_jalan/foto_surat_jalan_1643341150.jpeg',
+      foto_validasi: null, divalidasi_oleh: null, divalidasi_at: null, nama_validator: null,
+      items: [], catatan: 'Dimigrasi dari surat_jalan lama (backend-production) -- pengirim (data lama): Yoyo (diambil)',
+      status: 'terkirim', asal: 'migrasi_legacy', created_at: '2024-03-11T08:00:00.000Z',
     },
   ],
 };
@@ -212,6 +225,7 @@ export function mockRequest(path, method, data) {
           nama_validator: null,
           items: [],
           catatan: null,
+          asal: 'native',
           created_at: new Date().toISOString(),
         };
         sj.no_surat_jalan = `SJ-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(sj.id).padStart(4, '0')}`;
@@ -343,6 +357,7 @@ export function mockRequest(path, method, data) {
         nama_validator: null,
         catatan: data.catatan || null,
         status: 'draft',
+        asal: 'native',
         created_at: new Date().toISOString(),
       };
       sj.no_surat_jalan = `SJ-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(sj.id).padStart(4, '0')}`;

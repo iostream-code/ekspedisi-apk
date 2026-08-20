@@ -162,7 +162,7 @@ benar-benar dipanggil `api.js`/pages), dan cocok persis dengan
 | GET | `/admin/spk-ready-kirim` | `adminSpkKirim.js` (halaman "Plot SPK ke Supir") | — | SPK ready-kirim **belum diplot ke supir** → `[{ penjualan_id, no_spk, client_nama, kota_asal, kota_tujuan, penjualan_tanggal_kirim, tgl_cs_deadline, penjualan_total_qty }]` |
 | GET | `/admin/spk-belum-sj` | `adminSpkBelumSj.js` (tab "SPK", halaman awal admin) | — | SPK ready-kirim **belum ada SJ sama sekali** (kriteria beda dari baris di atas, independen — lihat README `ekspedisi-apk-backend`) → bentuk field sama persis |
 | GET | `/admin/sj/spk/:penjualan_id/items` | `adminNewSuratJalan.js` (tombol "+ Tambah" di field Nomor SPK, bisa dipanggil berkali-kali utk beberapa SPK) | — | `[{ penjualan_detail_performa_id, penjualan_jenis, penjualan_qty, terkirim, sisa }]`, 404 kalau SPK tidak ketemu |
-| GET | `/admin/sj` | `adminSuratJalan.js` | query opsional: `status`, `penjualan_id` | `[{ id, no_surat_jalan, trip_id, penjualan_id, driver_id, nama_supir, tujuan, kendaraan, plat, penerima, jumlah_kirim, tgl_kirim, items: [{ penjualan_detail_performa_id, penjualan_id, penjualan_jenis, jumlah_kirim }], foto_surat_jalan, foto_validasi, divalidasi_oleh, divalidasi_at, nama_validator, catatan, status, created_at }]` |
+| GET | `/admin/sj` | `adminSuratJalan.js` | query opsional: `status`, `penjualan_id` | `[{ id, no_surat_jalan, trip_id, penjualan_id, driver_id, nama_supir, tujuan, kendaraan, plat, penerima, jumlah_kirim, tgl_kirim, asal, items: [{ penjualan_detail_performa_id, penjualan_id, penjualan_jenis, jumlah_kirim }], foto_surat_jalan, foto_validasi, divalidasi_oleh, divalidasi_at, nama_validator, catatan, status, created_at }]` — `asal` = `native`/`migrasi_legacy` (badge "Data Lama" di tabel utk yang migrasi) |
 | POST | `/admin/sj` | `adminNewSuratJalan.js` | `{ tujuan, driver_id (WAJIB), kendaraan?, plat?, penerima?, jumlah_kirim?, tgl_kirim?, catatan?, items?: [{ penjualan_detail_performa_id, jumlah_kirim }] }` | 201, `{ ...surat jalan baru, no_surat_jalan auto-generated }`, 422 kalau `driver_id` kosong atau ada item melebihi sisa qty. `items` boleh lintas beberapa SPK sekaligus, tidak ada param `penjualan_id` lagi |
 | GET | `/admin/sj/:id` | (belum dipanggil dari UI) | — | `{ ...detail surat jalan }`, 404 kalau tidak ketemu |
 | PUT | `/admin/sj/:id` | (belum ada UI edit) | field opsional: `tujuan, kendaraan, plat, penerima, jumlah_kirim, tgl_kirim, catatan` | `{ ...surat jalan terupdate }` |
@@ -244,6 +244,15 @@ penerima saat barang diterima → dibawa balik ke admin → admin foto dokumen f
 tombolnya hilang — SJ yang sudah tervalidasi tidak bisa divalidasi ulang (backend menolak 422).
 Detail penuh (kenapa 3 status, kenapa foto checkpoint & foto validasi disimpan terpisah) ada di
 README `ekspedisi-apk-backend`.
+
+**Data historis (`asal='migrasi_legacy'`)** (2026-08-20) — hasil `migrate_legacy_surat_jalan.php`
+di `ekspedisi-apk-backend` (data `surat_jalan` lama sejak 2024, lihat README di sana). Baris
+begini tampil badge abu-abu **"Data Lama"** di sebelah status pada tabel `adminSuratJalan.js`,
+biasanya tanpa supir (`driver_id` NULL — data lama tidak match andal ke supir manapun) dan
+fotonya di-host di domain lama (`indokoper.com`), BUKAN di `API_BASE_URL` app ini sendiri.
+Karena itu URL foto dibangun lewat helper `fotoUrl()` (bukan `${API_BASE_URL}/${path}` langsung
+seperti sebelumnya) — deteksi otomatis: kalau `path`-nya sudah URL absolut (`http.../...`),
+dipakai apa adanya; kalau relatif, baru digabung dgn `API_BASE_URL` seperti biasa.
 
 **Model tabel + toolbar Refresh/Riwayat** (2026-08-20) — tab "SPK" (`adminSpkBelumSj.js`) & "SJ"
 (`adminSuratJalan.js`) dirombak dari kartu ke `<table>`, meniru pola card-header di
