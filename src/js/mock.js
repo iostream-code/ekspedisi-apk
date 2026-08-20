@@ -114,6 +114,25 @@ const DUMMY_PENJUALAN_ITEMS = {
   ],
 };
 
+// Cari penjualan_id ASLI dari input admin yang boleh berupa ID persis
+// ("INV_01701-5"), cuma angkanya ("1701"/"1701-5"), atau format tampilan
+// ("SPK-1701-5") -- meniru persis SuratJalanController::resolvePenjualanId()
+// di ekspedisi-apk-backend (lihat komentar panjang di sana soal REGEXP
+// anchored, kenapa bukan substring/LIKE biasa).
+function resolvePenjualanId(input) {
+  if (DUMMY_PENJUALAN_ITEMS[input]) return input;
+  const m = String(input).match(/^(?:INV_?|SPK-?)?0*(\d+)(-(\d+))?$/i);
+  if (!m) return null;
+  const num = String(parseInt(m[1], 10));
+  const suffix = m[3] || null;
+  const candidates = Object.keys(DUMMY_PENJUALAN_ITEMS).filter((id) => {
+    const mm = id.match(/^INV_?0*(\d+)(-(\d+))?$/i);
+    if (!mm) return false;
+    return String(parseInt(mm[1], 10)) === num && (mm[3] || null) === suffix;
+  });
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
 // Nama klien per penjualan_id (SPK) -- meniru App\Support\SuratJalan::
 // resolveClientNames() di driver-apk-backend (join t_penjualan_header/
 // m_client di sana, di sini cukup lookup dari DUMMY_SPK_READY_KIRIM krn
@@ -292,10 +311,14 @@ export function mockRequest(rawPath, method, data) {
   // GET /admin/drivers -- tab "Ekspedisi" MURNI monitoring sejak 2026-08-20
   // (bukan lagi tempat plotting supir) -- cuma balikin supir yang SEDANG
   // mengirim: py trip aktif ATAU py SJ yang belum tervalidasi (draft/terkirim),
-  // meniru filter EXISTS/EXISTS di AdminController::drivers() (driver-apk-backend).
+  // meniru filter EXISTS/EXISTS di AdminController::drivers() (ekspedisi-apk-backend).
+  // `?semua=1` skip filter ini sama sekali -- dipakai dropdown "Pilih supir"
+  // di form Buat SJ (adminNewSuratJalan.js), lihat komentar panjang di
+  // AdminController::drivers() soal kenapa dua mode ini WAJIB terpisah.
   if (method === 'GET' && path === '/admin/drivers') {
+    const semua = query.semua === '1' || query.semua === 'true';
     const SJ_STEP_LABEL = { draft: 'Menunggu bukti kirim', terkirim: 'Dalam pengiriman' };
-    const sedangMengirim = store.drivers.filter((d) => {
+    const sedangMengirim = semua ? store.drivers : store.drivers.filter((d) => {
       const hasActiveTrip = tripsForDriver(d.id, 'in_progress').length > 0;
       const hasActiveSj = store.suratJalan.some((sj) => sj.driver_id === d.id && ['draft', 'terkirim'].includes(sj.status));
       return hasActiveTrip || hasActiveSj;
@@ -391,10 +414,13 @@ export function mockRequest(rawPath, method, data) {
     return deferred.promise();
   }
 
-  // GET /admin/sj -> daftar surat jalan (modul milik app ini sendiri), query opsional q/status/page/per_page
+  // GET /admin/sj -> daftar surat jalan (modul milik app ini sendiri), query opsional q/status/tahun/page/per_page
   if (method === 'GET' && path === '/admin/sj') {
     let list = [...store.suratJalan].sort((a, b) => new Date(b.created_at) - new Date(a.created_at) || b.id - a.id);
     if (query.status) list = list.filter((sj) => sj.status === query.status);
+    // COALESCE(tgl_kirim, created_at) -- sama persis App\Support\SuratJalan::list()
+    // di ekspedisi-apk-backend, biar filter tahun konsisten antara mock & real API.
+    if (query.tahun) list = list.filter((sj) => new Date(sj.tgl_kirim || sj.created_at).getFullYear() === Number(query.tahun));
     if (query.q) {
       const q = query.q.toLowerCase();
       list = list.filter((sj) => [sj.no_surat_jalan, sj.tujuan, sj.penerima, sj.nama_supir, ...(sj.items || []).map((it) => it.penjualan_id)]
@@ -407,10 +433,18 @@ export function mockRequest(rawPath, method, data) {
     return delay({ data: pageRows, total: list.length, page, per_page: perPage }, 300);
   }
 
+  // GET /admin/sj/years -> tahun yang ada di data (lihat SuratJalan::availableYears())
+  if (method === 'GET' && path === '/admin/sj/years') {
+    const years = [...new Set(store.suratJalan.map((sj) => new Date(sj.tgl_kirim || sj.created_at).getFullYear()))]
+      .sort((a, b) => b - a);
+    return delay(years);
+  }
+
   // GET /admin/sj/spk/:penjualan_id/items -> lini produk 1 SPK + sisa qty (lihat PenjualanItemLookup)
   m = path.match(/^\/admin\/sj\/spk\/([^/]+)\/items$/);
   if (method === 'GET' && m) {
-    const lines = DUMMY_PENJUALAN_ITEMS[decodeURIComponent(m[1])];
+    const resolvedId = resolvePenjualanId(decodeURIComponent(m[1]));
+    const lines = resolvedId ? DUMMY_PENJUALAN_ITEMS[resolvedId] : null;
     const deferred = $.Deferred();
     setTimeout(() => {
       if (lines) deferred.resolve(lines.map((l) => ({ ...l })));

@@ -170,7 +170,7 @@ export async function renderAdminEkspedisiList($container) {
             <span class="rounded-full px-2 py-0.5 text-xs font-medium ${Number(eks.is_active) ? 'bg-status-online/10 text-status-online' : 'bg-slate-100 text-slate-500'}">${Number(eks.is_active) ? 'Aktif' : 'Nonaktif'}</span>
           </td>
           <td class="whitespace-nowrap px-3 py-2.5 text-right">
-            <button class="btn-edit btn-table-action bg-slate-100 text-slate-600 hover:bg-slate-200">Edit</button>
+            <button class="btn-edit btn-table-action">Edit</button>
           </td>
         </tr>
       `);

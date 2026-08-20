@@ -31,7 +31,11 @@ export async function renderAdminNewSuratJalan($container) {
 
   let drivers = [];
   try {
-    drivers = await api.get('/admin/drivers');
+    // `?semua=1` -- BUKAN endpoint yang sama dgn tab "Ekspedisi" (yang cuma
+    // nampilin supir yang SEDANG mengirim). Dropdown ini butuh SEMUA supir,
+    // krn yang mau dipilih justru biasanya supir yang masih nganggur/belum
+    // ditugaskan (lihat komentar AdminController::drivers() di backend).
+    drivers = await api.get('/admin/drivers?semua=1');
   } catch (e) {
     drivers = [];
   }
@@ -46,13 +50,14 @@ export async function renderAdminNewSuratJalan($container) {
         <div>
           <label class="mb-1 block text-sm font-medium text-slate-600">Nomor SPK</label>
           <div class="flex gap-2">
-            <input id="penjualan_id" type="text" placeholder="Contoh: INV_01701-5"
+            <input id="penjualan_id" type="text" placeholder="Contoh: 1701-5"
               class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
             <button type="button" id="btn-tambah-spk" class="btn-ghost shrink-0 !py-2.5 px-4 text-sm">+ Tambah</button>
           </div>
-          <p class="mt-1.5 text-xs text-slate-400">1 SJ boleh mengangkut lebih dari 1 SPK sekaligus -- isi nomor,
-            klik Tambah, ulangi kalau ada SPK lain. Breakdown per produk & sisa qty tercatat otomatis. Jangan
-            tambah SPK apa pun kalau ini pengiriman lepas (bukan dari SPK, mis. sampel/transfer internal).</p>
+          <p class="mt-1.5 text-xs text-slate-400">Cukup tulis angkanya saja, mis. "1701" atau "1701-5" (boleh juga
+            format lengkap "INV_01701-5" / "SPK-1701-5" kalau ada). 1 SJ boleh mengangkut lebih dari 1 SPK sekaligus
+            -- isi nomor, klik Tambah, ulangi kalau ada SPK lain. Breakdown per produk & sisa qty tercatat otomatis.
+            Jangan tambah SPK apa pun kalau ini pengiriman lepas (bukan dari SPK, mis. sampel/transfer internal).</p>
           <div id="spk-groups" class="mt-3 hidden space-y-3"></div>
           <p id="spk-error" class="mt-2 hidden rounded-lg bg-status-alert/10 px-3 py-2 text-sm font-medium text-status-alert"></p>
         </div>

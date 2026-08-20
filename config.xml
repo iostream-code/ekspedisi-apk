@@ -1,45 +1,63 @@
 <?xml version='1.0' encoding='utf-8'?>
-<widget id="com.perusahaan.ekspedisi" version="1.0.0" android-versionCode="1" ios-CFBundleVersion="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
+<widget android-versionCode="1" id="com.perusahaan.ekspedisi" ios-CFBundleVersion="1.0.0" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:android="http://schemas.android.com/apk/res/android" xmlns:cdv="http://cordova.apache.org/ns/1.0">
     <name>Ekspedisi</name>
     <description>Aplikasi ekspedisi -- tracking supir (internal &amp; eksternal), plotting pengiriman, monitoring admin.</description>
     <author email="dev@example.com" href="https://example.com">Tim Dev</author>
-
     <content src="index.html" />
     <access origin="*" />
     <allow-intent href="http://*/*" />
     <allow-intent href="https://*/*" />
     <allow-navigation href="*" />
-
     <preference name="DisallowOverscroll" value="true" />
     <preference name="Orientation" value="portrait" />
     <preference name="android-minSdkVersion" value="24" />
     <preference name="AndroidXEnabled" value="true" />
-
     <platform name="android">
         <allow-intent href="market:*" />
         <edit-config file="app/src/main/AndroidManifest.xml" mode="merge" target="/manifest/application">
             <application android:usesCleartextTraffic="true" />
         </edit-config>
-        <config-file target="AndroidManifest.xml" parent="/manifest">
+        <config-file parent="/manifest" target="AndroidManifest.xml">
             <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
             <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
             <uses-permission android:name="android.permission.CAMERA" />
             <uses-permission android:name="android.permission.INTERNET" />
         </config-file>
+        <icon density="ldpi" src="resources/android/icon/drawable-ldpi-icon.png" />
+        <icon density="mdpi" src="resources/android/icon/drawable-mdpi-icon.png" />
+        <icon density="hdpi" src="resources/android/icon/drawable-hdpi-icon.png" />
+        <icon density="xhdpi" src="resources/android/icon/drawable-xhdpi-icon.png" />
+        <icon density="xxhdpi" src="resources/android/icon/drawable-xxhdpi-icon.png" />
+        <icon density="xxxhdpi" src="resources/android/icon/drawable-xxxhdpi-icon.png" />
+        <splash density="port-ldpi" src="resources/android/splash/drawable-port-ldpi-screen.png" />
+        <splash density="port-mdpi" src="resources/android/splash/drawable-port-mdpi-screen.png" />
+        <splash density="port-hdpi" src="resources/android/splash/drawable-port-hdpi-screen.png" />
+        <splash density="port-xhdpi" src="resources/android/splash/drawable-port-xhdpi-screen.png" />
+        <splash density="port-xxhdpi" src="resources/android/splash/drawable-port-xxhdpi-screen.png" />
+        <splash density="port-xxxhdpi" src="resources/android/splash/drawable-port-xxxhdpi-screen.png" />
+        <resource-file src="resources/values/colors.xml" target="/app/src/main/res/values/colors.xml" />
+        <!-- Adaptive icon (mipmap-*-v26, Android 8+) SENGAJA tidak dipakai (2026-08-20):
+             cordova-android 15.1.0 di project ini TIDAK mempertahankan file adaptive-icon
+             (mipmap-*-v26/ic_launcher.xml plus foreground/background PNG) walau sudah
+             ditaruh manual, kehapus lagi tiap cordova prepare/build (bukan bug kita,
+             atribut background/foreground pada icon adalah ekstensi cordova-res, bukan
+             atribut config.xml standar yang cordova-android versi ini proses). Icon flat
+             (mipmap-*/ic_launcher.png, lewat icon density/src di atas) SUDAH benar dan
+             terverifikasi masuk ke APK, itu yang dipakai di semua launcher; adaptive cuma
+             nambah efek masking/parallax yang TIDAK esensial. Lihat README bagian
+             "Icon dan splashscreen app" kalau nanti mau coba lagi (mis. setelah upgrade
+             cordova-android/cordova-res). -->
     </platform>
-
     <platform name="ios">
         <allow-intent href="itms:*" />
         <allow-intent href="itms-apps:*" />
-        <config-file target="*-Info.plist" parent="NSLocationWhenInUseUsageDescription">
+        <config-file parent="NSLocationWhenInUseUsageDescription" target="*-Info.plist">
             <string>Aplikasi memerlukan lokasi untuk melacak posisi supir selama perjalanan.</string>
         </config-file>
-        <config-file target="*-Info.plist" parent="NSCameraUsageDescription">
+        <config-file parent="NSCameraUsageDescription" target="*-Info.plist">
             <string>Aplikasi memerlukan kamera untuk mengambil foto checkpoint perjalanan.</string>
         </config-file>
     </platform>
-
-    <!-- Plugin wajib -->
     <plugin name="cordova-plugin-whitelist" spec="^1.3.5" />
     <plugin name="cordova-plugin-device" spec="^2.1.0" />
     <plugin name="cordova-plugin-camera" spec="^7.0.0" />

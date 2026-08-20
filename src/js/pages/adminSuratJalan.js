@@ -12,10 +12,12 @@ import { takePhoto } from '../camera.js';
 import { formatSpkNo, toTitleCase } from '../format.js';
 
 const STATUS_LABEL = { draft: 'Draft', terkirim: 'Terkirim', tervalidasi: 'Tervalidasi' };
+// Kuning = draft (belum jalan), hijau = terkirim (sedang jalan), biru = tervalidasi
+// (selesai, sudah final) -- 3 warna beda supaya gampang dipindai sekilas di tabel.
 const STATUS_CLASS = {
   draft: 'bg-yellow-50 text-yellow-700',
   terkirim: 'bg-status-online/10 text-status-online',
-  tervalidasi: 'bg-brand-100 text-brand-700',
+  tervalidasi: 'bg-blue-50 text-blue-700',
 };
 
 // Baris hasil migrate_legacy_surat_jalan.php (ekspedisi-apk-backend) simpan
@@ -160,8 +162,29 @@ export async function renderAdminSuratJalan($container) {
 
   let historyMode = false;
   let query = '';
+  const currentYear = new Date().getFullYear();
+  let tahun = String(currentYear);
   let page = 1;
   const perPage = 20;
+
+  // Dimuat sekali di awal (bukan tiap load(), tahunnya sendiri jarang berubah) --
+  // dipakai isi dropdown filter tahun di toolbar (sejajar kotak cari, 2026-08-20).
+  // Default = tahun berjalan, TIDAK ADA pilihan "semua tahun" (sengaja, permintaan
+  // user) -- tahun berjalan WAJIB selalu ada di daftar opsi walau belum ada SJ
+  // sama sekali tahun ini (backend cuma balikin tahun yang BENERAN ada baris-nya,
+  // lihat SuratJalan::availableYears()), makanya ditambahkan manual di sini kalau
+  // belum ada, supaya defaultnya tidak pernah "hilang" dari dropdown.
+  // Gagal diam-diam (dropdown cuma jadi tahun berjalan doang) -- BUKAN alasan
+  // gagalin seluruh halaman, data SJ tetap harus kelihatan walau ini gagal.
+  let years = [];
+  try {
+    years = await api.get('/admin/sj/years');
+  } catch (e) {
+    years = [];
+  }
+  if (!years.map(String).includes(String(currentYear))) {
+    years = [currentYear, ...years].sort((a, b) => b - a);
+  }
 
   async function load() {
     $tableSection.html(`<div class="card overflow-hidden">${pageLoaderHtml('Memuat data...')}</div>`);
@@ -171,6 +194,7 @@ export async function renderAdminSuratJalan($container) {
       result = await api.get(`/admin/sj?${new URLSearchParams({
         ...(historyMode ? { status: 'tervalidasi' } : {}),
         ...(query ? { q: query } : {}),
+        ...(tahun ? { tahun } : {}),
         page: String(page),
         per_page: String(perPage),
       })}`);
@@ -199,6 +223,13 @@ export async function renderAdminSuratJalan($container) {
       searchValue: query,
       onSearch: (val) => {
         query = val;
+        page = 1;
+        load();
+      },
+      yearOptions: years,
+      yearValue: tahun,
+      onYearChange: (val) => {
+        tahun = val;
         page = 1;
         load();
       },
@@ -248,14 +279,14 @@ export async function renderAdminSuratJalan($container) {
         </tr>
       `);
 
-      const $detailBtn = $(`<button class="btn-table-action bg-slate-100 text-slate-600 hover:bg-slate-200">Detail</button>`);
+      const $detailBtn = $(`<button class="btn-table-action">Detail</button>`);
       $detailBtn.on('click', () => renderModal({ title: 'Detail Surat Jalan', bodyHtml: detailBodyHtml(sj) }));
       $tr.find('[data-aksi]').append($detailBtn);
 
       if (sj.status !== 'tervalidasi') {
         // SJ fisik yang sudah ditandatangani penerima & dibawa balik supir --
         // admin foto dokumen final itu di sini, sekalian menutup alur validasi.
-        const $btn = $(`<button class="btn-table-action border border-slate-200 text-ink hover:bg-slate-50">Validasi</button>`);
+        const $btn = $(`<button class="btn-table-action">Validasi</button>`);
         $btn.on('click', async () => {
           let blob;
           try {
@@ -272,7 +303,7 @@ export async function renderAdminSuratJalan($container) {
               Object.assign(sj, updated);
               $tr.find('[data-status-badge]')
                 .removeClass('bg-yellow-50 text-yellow-700 bg-status-online/10 text-status-online')
-                .addClass('bg-brand-100 text-brand-700')
+                .addClass(STATUS_CLASS.tervalidasi)
                 .text(STATUS_LABEL.tervalidasi);
               $btn.remove();
             })

@@ -28,8 +28,16 @@ const SEARCH_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"
  *   refresh/toggle-riwayat, lihat pemanggil)
  * @param {Function} [opts.onSearch] - kalau diisi, tampilkan kotak cari di bawah bar gelap.
  *   Dipanggil dgn teks pencarian (debounced ~400ms sambil ngetik, langsung saat Enter).
+ * @param {number[]} [opts.yearOptions] - kalau diisi (bareng onYearChange), tampilkan dropdown
+ *   filter tahun SEJAJAR kotak cari (2026-08-20, diminta khusus tab "SJ") -- daftar tahun yang
+ *   ADA di data (dari backend, bukan range hardcode), diurutkan terbaru dulu. TIDAK ADA pilihan
+ *   "semua tahun" (2026-08-20, sengaja dicabut) -- selalu 1 tahun spesifik terpilih, pemanggil
+ *   yang jamin `yearOptions` selalu mengandung tahun default (lihat adminSuratJalan.js). Opt-in
+ *   supaya tab lain yang juga pakai toolbar ini (mis. SPK) tidak ikut kena filter yang tidak relevan.
+ * @param {string} [opts.yearValue] - tahun yang lagi aktif dipilih.
+ * @param {Function} [opts.onYearChange] - dipanggil dgn tahun yang baru dipilih.
  */
-export function renderTableToolbar($container, { count, historyActive, onRefresh, onToggleHistory, addLabel, onAdd, searchValue, onSearch }) {
+export function renderTableToolbar($container, { count, historyActive, onRefresh, onToggleHistory, addLabel, onAdd, searchValue, onSearch, yearOptions, yearValue, onYearChange }) {
   const $bar = $(`
     <div class="flex items-center justify-between rounded-t-2xl bg-ink px-4 py-2.5">
       <p class="text-sm font-semibold text-white">Data | ${count}</p>
@@ -51,13 +59,19 @@ export function renderTableToolbar($container, { count, historyActive, onRefresh
   $container.append($bar);
 
   if (onSearch) {
+    const yearOptionsHtml = onYearChange
+      ? (yearOptions || [])
+          .map((y) => `<option value="${y}" ${String(y) === String(yearValue || '') ? 'selected' : ''}>${y}</option>`)
+          .join('')
+      : '';
     const $searchRow = $(`
-      <div class="border-b border-slate-100 bg-white px-3 py-2">
-        <div class="relative">
+      <div class="flex items-center gap-2 border-b border-slate-100 bg-white px-3 py-2">
+        <div class="relative flex-1">
           <span class="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-slate-400">${SEARCH_ICON}</span>
           <input type="text" value="${searchValue || ''}" placeholder="Cari..."
             class="w-full rounded-lg border border-slate-200 py-1.5 pl-8 pr-3 text-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
         </div>
+        ${onYearChange ? `<select class="shrink-0 rounded-lg border border-slate-200 py-1.5 pl-2 pr-6 text-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">${yearOptionsHtml}</select>` : ''}
       </div>
     `);
     let debounceTimer;
@@ -71,6 +85,11 @@ export function renderTableToolbar($container, { count, historyActive, onRefresh
         onSearch($(this).val());
       }
     });
+    if (onYearChange) {
+      $searchRow.find('select').on('change', function () {
+        onYearChange($(this).val());
+      });
+    }
     $container.append($searchRow);
   }
 }

@@ -217,7 +217,7 @@ export async function renderAdminSpkBelumSj($container) {
             <td class="whitespace-nowrap px-3 py-2.5 text-slate-500">${toTitleCase(row.client_nama)}</td>
             <td class="whitespace-nowrap px-3 py-2.5 text-slate-500">${row.kota_tujuan || '-'}</td>
             <td class="whitespace-nowrap px-3 py-2.5 text-slate-500">${tglKirim}</td>
-            <td class="whitespace-nowrap px-3 py-2.5 text-right"><button class="btn-buat-sj btn-table-action bg-slate-100 text-slate-600 hover:bg-slate-200">Surat Jalan</button></td>
+            <td class="whitespace-nowrap px-3 py-2.5 text-right"><button class="btn-buat-sj btn-table-action">Kirim</button></td>
           </tr>
         `);
         $tr.find('.btn-buat-sj').on('click', () => {

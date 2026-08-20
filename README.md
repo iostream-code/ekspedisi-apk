@@ -477,6 +477,35 @@ sekarang framenya sama besar).
   dgn perampingan kolom sebelumnya (Supir/Kirim/Foto/dst) — konsisten dgn keputusan "tabel cuma
   info yang perlu dilihat sekilas, detail lengkap di modal".
 
+## Filter tahun di tab "SJ" (2026-08-20)
+
+Dropdown tahun, SEJAJAR kotak cari (satu baris, `components/tableToolbar.js` diperluas dgn opsi
+`yearOptions`/`yearValue`/`onYearChange`, opt-in -- tab lain yg pakai toolbar yang sama, mis. SPK,
+tidak ikut kena krn tidak passing opsi ini). Default = **tahun berjalan**, TIDAK ADA pilihan
+"semua tahun" (2026-08-20, sengaja dicabut atas permintaan user -- selalu difilter ke 1 tahun
+spesifik, tidak pernah nampilin gabungan semua tahun sekaligus).
+
+- Pilihan tahun **BUKAN range hardcode** (mis. "3 tahun terakhir") -- diambil dari
+  `GET /admin/sj/years` (`App\Support\SuratJalan::availableYears()`), query `SELECT DISTINCT
+  YEAR(...)` ke data sungguhan. Alasan: `migrate_legacy_surat_jalan.php` mundur beberapa tahun
+  (dicek langsung ke produksi 2026-08-20: ada baris 2024/2025/2026), jadi range hardcode gampang
+  ketinggalan begitu ada migrasi data lama lagi ke depannya.
+- Tahun berjalan **selalu ditambahkan ke daftar opsi di FE** (`adminSuratJalan.js`) kalau belum
+  ada di response `/admin/sj/years` -- backend cuma balikin tahun yang BENERAN py baris datanya,
+  jadi kalau belum ada SJ sama sekali di tahun berjalan (mis. baru ganti tahun, belum ada
+  transaksi), defaultnya tidak boleh "hilang" dari dropdown gara-gara tidak ada di hasil query.
+- Filter tahun jalan di `YEAR(COALESCE(sj.tgl_kirim, sj.created_at))`, BUKAN cuma `tgl_kirim` --
+  kolom ini nullable (baris tanpa tanggal kirim tampil "-" di kolom "Dikirim"), kalau filter cuma
+  ke `tgl_kirim` baris begini tidak akan pernah muncul di filter tahun MANAPUN. Fallback ke
+  `created_at` (selalu terisi) memastikan tiap baris punya tepat 1 tahun yang cocok. Query param
+  `tahun` di `GET /admin/sj` (`SuratJalan::list()`) pakai logika yang SAMA PERSIS.
+- Server-side (bukan filter client thd 1 halaman yang sudah termuat) -- konsisten dgn pagination
+  SJ yang sudah server-side duluan (lihat catatan di atas soal `migrate_legacy_surat_jalan.php`
+  bikin tabel ini py ribuan baris).
+- Route `GET /admin/sj/years` WAJIB didaftarkan SEBELUM `GET /admin/sj/{id}` di `bootstrap.php`
+  (backend) -- segmen path sama-sama 1 kata (`/admin/sj/years` vs `/admin/sj/{id}`), kalau kebalik
+  "years" ketangkep sbg nilai `{id}` (pola yang sama dgn `/admin/sj/new` di FE `main.js`).
+
 ## Routing & role guard
 
 `main.js` mendaftarkan route lewat `registerRoute(path, render, { roles, public })`:
@@ -599,6 +628,59 @@ beda-beda, keduanya sekarang sudah ditangani otomatis:
 
 Verifikasi: `cordova build android` sukses penuh (`BUILD SUCCESSFUL`), APK debug ada di
 `platforms/android/app/build/outputs/apk/debug/app-debug.apk`.
+
+## Icon dan splashscreen app (2026-08-20)
+
+Sebelumnya app ini masih pakai icon/splashscreen DEFAULT Cordova (burung/robot generik) --
+diganti pakai logo asli perusahaan (`public/logo_koperindo.jpeg`, "Koper Indonesia", sudah
+dipakai juga di navbar app). Sumber icon/splash disimpan di `resources/` (root project, BUKAN
+di-gitignore, beda dari `platforms/`/`www/` -- source ini harus ikut ter-commit krn tidak bisa
+di-generate ulang otomatis dari `public/logo_koperindo.jpeg` tanpa proses manual di bawah):
+
+- `resources/icon.png` -- source icon FLAT (persegi, logo apa adanya).
+- `resources/splash.png` -- source splashscreen: kanvas putih 2000x2000 dengan logo kecil (30%)
+  di tengah, SENGAJA jauh dari tepi supaya aman dari crop `--fit cover` ke rasio potret manapun
+  (app dikunci portrait only, splash landscape tidak digenerate).
+- `resources/android/icon-foreground.png` -- percobaan adaptive-icon (lihat catatan di bawah,
+  TIDAK terpakai efektif, disimpan buat referensi kalau nanti dicoba lagi).
+
+Regenerasi (kalau logo perusahaan berubah lagi ke depannya):
+
+```bash
+npx cordova-res android --type icon --icon-source resources/icon.png --android-project platforms/android --copy
+npx cordova-res android --type splash --splash-source resources/splash.png --fit cover --android-project platforms/android --copy
+```
+
+**WAJIB pakai `--android-project platforms/android`** -- tanpa flag ini, `cordova-res` (versi
+0.15.4) salah nebak default folder project jadi `./android` (bikin folder baru salah tempat di
+root repo, bukan `platforms/android` yang sungguhan dipakai Cordova) -- kejadian nyata pas
+ngerjain ini pertama kali, sempat bikin folder `android/` nyasar yang harus dihapus manual.
+
+**Adaptive icon (mipmap-\*-v26, mask bulat/squircle Android 8+) SENGAJA tidak dipakai** --
+`cordova-res` bisa generate file-nya (`--type adaptive-icon`), dan sempat berhasil ditaruh manual
+ke `platforms/android/app/src/main/res/mipmap-*-v26/`, TAPI cordova-android 15.1.0 di project ini
+selalu menghapusnya lagi setiap `cordova prepare`/`build` (atribut `background`/`foreground` pada
+elemen `<icon>` di `config.xml` adalah ekstensi milik `cordova-res`, BUKAN atribut config.xml
+standar yang cordova-android versi ini proses/pertahankan -- root cause pasti, sudah diverifikasi
+lewat isi APK jadi, bukan dugaan). Icon FLAT (`mipmap-*/ic_launcher.png`, jalur `<icon
+density=.. src=..>` yang standar) sudah benar dan terverifikasi masuk ke APK final -- itu yang
+tampil di launcher manapun; adaptive cuma nambah efek masking/parallax kosmetik, bukan sesuatu
+yang esensial buat app internal seperti ini. Kalau nanti mau dicoba lagi (mis. setelah upgrade
+`cordova-android`/`cordova-res`), source foreground sudah tersedia di
+`resources/android/icon-foreground.png` (logo dengan padding transparan di sekitarnya, supaya
+aman dari safe-zone masking) -- tinggal generate ulang dengan:
+
+```bash
+npx cordova-res android --type adaptive-icon --icon-foreground-source resources/android/icon-foreground.png --icon-background-source '#FFFFFF' --android-project platforms/android --copy
+```
+
+lalu verifikasi isi APK jadi (`unzip -l app-debug.apk | grep mipmap.*v26`) sebelum percaya itu
+benar-benar kepakai -- JANGAN cuma percaya log `cordova-res` ("Copied N resource items"), log itu
+tidak mendeteksi kalau `cordova prepare` diam-diam menghapusnya lagi setelahnya.
+
+Verifikasi hasil akhir (2026-08-20): extract `res/mipmap-xxxhdpi-v4/ic_launcher.png` dan
+`res/drawable-port-xxxhdpi-v4/splash.png` langsung dari `app-debug.apk` jadi, dicek visual --
+keduanya logo Koper Indonesia yang benar, bukan default Cordova lagi.
 
 ## Format nomor SPK (2026-08-20)
 
