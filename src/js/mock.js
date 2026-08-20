@@ -168,7 +168,14 @@ export function mockLogin(username) {
   });
 }
 
-export function mockRequest(path, method, data) {
+export function mockRequest(rawPath, method, data) {
+  // Beberapa endpoint (GET /admin/sj, /admin/spk-belum-sj) sekarang dipanggil
+  // dgn query string (?q=&page=&per_page=&status=) -- pisahkan dulu supaya
+  // matching `path === '/admin/sj'` di bawah tetap jalan, `query` dipakai
+  // handler yang butuh.
+  const [path, queryString] = rawPath.split('?');
+  const query = Object.fromEntries(new URLSearchParams(queryString || ''));
+
   // GET /driver/me
   if (method === 'GET' && path === '/driver/me') {
     const activeTrips = tripsForDriver(CURRENT_DRIVER_ID, 'in_progress').map(formatTrip);
@@ -294,9 +301,19 @@ export function mockRequest(path, method, data) {
     return delay(DUMMY_EKSPEDISI, 200);
   }
 
-  // GET /admin/sj -> daftar surat jalan (modul milik app ini sendiri)
+  // GET /admin/sj -> daftar surat jalan (modul milik app ini sendiri), query opsional q/status/page/per_page
   if (method === 'GET' && path === '/admin/sj') {
-    return delay([...store.suratJalan].sort((a, b) => b.id - a.id), 300);
+    let list = [...store.suratJalan].sort((a, b) => b.id - a.id);
+    if (query.status) list = list.filter((sj) => sj.status === query.status);
+    if (query.q) {
+      const q = query.q.toLowerCase();
+      list = list.filter((sj) => [sj.no_surat_jalan, sj.tujuan, sj.penerima, sj.nama_supir, ...(sj.items || []).map((it) => it.penjualan_id)]
+        .some((v) => String(v || '').toLowerCase().includes(q)));
+    }
+    const page = Number(query.page) || 1;
+    const perPage = Number(query.per_page) || 20;
+    const start = (page - 1) * perPage;
+    return delay({ data: list.slice(start, start + perPage), total: list.length, page, per_page: perPage }, 300);
   }
 
   // GET /admin/sj/spk/:penjualan_id/items -> lini produk 1 SPK + sisa qty (lihat PenjualanItemLookup)
@@ -432,7 +449,15 @@ export function mockRequest(path, method, data) {
       if (sj.penjualan_id) spkYangSudahAdaSj.add(sj.penjualan_id);
       (sj.items || []).forEach((it) => { if (it.penjualan_id) spkYangSudahAdaSj.add(it.penjualan_id); });
     });
-    return delay(DUMMY_SPK_READY_KIRIM.filter((spk) => !spkYangSudahAdaSj.has(spk.penjualan_id)), 300);
+    let list = DUMMY_SPK_READY_KIRIM.filter((spk) => !spkYangSudahAdaSj.has(spk.penjualan_id));
+    if (query.q) {
+      const q = query.q.toLowerCase();
+      list = list.filter((spk) => [spk.client_nama, spk.no_spk].some((v) => String(v || '').toLowerCase().includes(q)));
+    }
+    const page = Number(query.page) || 1;
+    const perPage = Number(query.per_page) || 20;
+    const start = (page - 1) * perPage;
+    return delay({ data: list.slice(start, start + perPage), total: list.length, page, per_page: perPage }, 300);
   }
 
   // GET /admin/surat-jalan/:no  -> cek nomor SJ asli (lihat SuratJalanLookup di driver-apk-backend)

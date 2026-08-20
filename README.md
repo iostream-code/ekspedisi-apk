@@ -47,7 +47,8 @@ ekspedisi-apk/
         ├── components/
         │   ├── navbar.js       # header hijau + connection-indicator + tombol back/logout, dipakai tiap halaman
         │   ├── adminTabs.js     # tab bar SPK/SJ/Ekspedisi -- cuma di 3 halaman ROOT admin
-        │   ├── tableToolbar.js   # toolbar "Judul (jumlah) + Riwayat/Refresh" di atas <table> (tab SPK & SJ)
+        │   ├── tableToolbar.js   # toolbar "Data | jumlah" + kotak cari + Riwayat/Refresh di atas <table> (tab SPK & SJ)
+        │   ├── pagination.js     # kontrol Sebelumnya/Selanjutnya + "X-Y dari Z" di bawah <table>
         │   └── loader.js       # spinner, page loader, setButtonLoading()
         └── pages/
             ├── login.js
@@ -160,9 +161,9 @@ benar-benar dipanggil `api.js`/pages), dan cocok persis dengan
 | POST | `/admin/trips/:id/complete` | `adminDriverDetail.js` (tombol "Tandai Selesai", cuma tampil utk trip aktif supir eksternal) | — | `{ ...trip, status: 'completed' }`, 422 kalau supirnya internal |
 | GET | `/admin/surat-jalan/:no` | `adminNewTrip.js` (tombol "Cek") | — | `{ no_surat_jalan, tanggal, kendaraan, plat, pengirim, valid_cs, client_nama, client_alamat }`, 404 kalau tidak ketemu |
 | GET | `/admin/spk-ready-kirim` | `adminSpkKirim.js` (halaman "Plot SPK ke Supir") | — | SPK ready-kirim **belum diplot ke supir** → `[{ penjualan_id, no_spk, client_nama, kota_asal, kota_tujuan, penjualan_tanggal_kirim, tgl_cs_deadline, penjualan_total_qty }]` |
-| GET | `/admin/spk-belum-sj` | `adminSpkBelumSj.js` (tab "SPK", halaman awal admin) | — | SPK ready-kirim **belum ada SJ sama sekali** (kriteria beda dari baris di atas, independen — lihat README `ekspedisi-apk-backend`) → bentuk field sama persis |
+| GET | `/admin/spk-belum-sj` | `adminSpkBelumSj.js` (tab "SPK", halaman awal admin) | query opsional: `q`, `page`, `per_page` | SPK ready-kirim **belum ada SJ sama sekali** (kriteria beda dari baris di atas, independen — lihat README `ekspedisi-apk-backend`) → `{ data: [...bentuk field sama persis...], total, page, per_page }` |
 | GET | `/admin/sj/spk/:penjualan_id/items` | `adminNewSuratJalan.js` (tombol "+ Tambah" di field Nomor SPK, bisa dipanggil berkali-kali utk beberapa SPK) | — | `[{ penjualan_detail_performa_id, penjualan_jenis, penjualan_qty, terkirim, sisa }]`, 404 kalau SPK tidak ketemu |
-| GET | `/admin/sj` | `adminSuratJalan.js` | query opsional: `status`, `penjualan_id` | `[{ id, no_surat_jalan, trip_id, penjualan_id, driver_id, nama_supir, tujuan, kendaraan, plat, penerima, jumlah_kirim, tgl_kirim, asal, items: [{ penjualan_detail_performa_id, penjualan_id, penjualan_jenis, jumlah_kirim }], foto_surat_jalan, foto_validasi, divalidasi_oleh, divalidasi_at, nama_validator, catatan, status, created_at }]` — `asal` = `native`/`migrasi_legacy` (badge "Data Lama" di tabel utk yang migrasi) |
+| GET | `/admin/sj` | `adminSuratJalan.js` | query opsional: `status`, `penjualan_id`, `q`, `page`, `per_page` | `{ data: [{ id, no_surat_jalan, trip_id, penjualan_id, driver_id, nama_supir, tujuan, kendaraan, plat, penerima, jumlah_kirim, tgl_kirim, asal, items: [{ penjualan_detail_performa_id, penjualan_id, penjualan_jenis, jumlah_kirim }], foto_surat_jalan, foto_validasi, divalidasi_oleh, divalidasi_at, nama_validator, catatan, status, created_at }], total, page, per_page }` — `asal` = `native`/`migrasi_legacy` (badge "Data Lama" di tabel utk yang migrasi) |
 | POST | `/admin/sj` | `adminNewSuratJalan.js` | `{ tujuan, driver_id (WAJIB), kendaraan?, plat?, penerima?, jumlah_kirim?, tgl_kirim?, catatan?, items?: [{ penjualan_detail_performa_id, jumlah_kirim }] }` | 201, `{ ...surat jalan baru, no_surat_jalan auto-generated }`, 422 kalau `driver_id` kosong atau ada item melebihi sisa qty. `items` boleh lintas beberapa SPK sekaligus, tidak ada param `penjualan_id` lagi |
 | GET | `/admin/sj/:id` | (belum dipanggil dari UI) | — | `{ ...detail surat jalan }`, 404 kalau tidak ketemu |
 | PUT | `/admin/sj/:id` | (belum ada UI edit) | field opsional: `tujuan, kendaraan, plat, penerima, jumlah_kirim, tgl_kirim, catatan` | `{ ...surat jalan terupdate }` |
@@ -259,18 +260,32 @@ dipakai apa adanya; kalau relatif, baru digabung dgn `API_BASE_URL` seperti bias
 `surat-jalan-apk` (judul + jumlah baris + ikon refresh/riwayat di toolbar gelap di atas tabel —
 lihat `pages/surat_jalan.html` di sana), disesuaikan ke sistem desain Tailwind app ini lewat
 `components/tableToolbar.js`. Tombol **Riwayat** toggle (bukan popup terpisah — app ini belum
-punya komponen modal) antara daftar aktif & mode riwayat, data yang sama di-refetch/filter ulang:
-- Tab SPK: aktif = `GET /admin/spk-belum-sj`; riwayat = `GET /admin/sj` di-"flatten" client-side
-  jadi 1 baris tabel PER SPK yang disentuh tiap SJ (dari `items[].penjualan_id`, fallback ke
-  header `penjualan_id` utk SJ trip-linked lama) — 1 SJ yang lintas beberapa SPK jadi beberapa
-  baris di tabel riwayat ini, supaya kolom SPK-nya tetap 1 nilai per baris (lihat
-  `flattenSjBySpk()` di `adminSpkBelumSj.js`).
-- Tab SJ: aktif = semua status tercampur (`GET /admin/sj` apa adanya, memang tujuan utama tab
-  ini); riwayat = difilter client-side ke `status === 'tervalidasi'` saja.
+punya komponen modal) antara daftar aktif & mode riwayat, di-refetch dari server tiap toggle
+(**server-side**, bukan filter client-side lagi sejak pagination ditambahkan — lihat di bawah):
+- Tab SPK: aktif = `GET /admin/spk-belum-sj`; riwayat = `GET /admin/sj`. Baik aktif maupun
+  riwayat, hasilnya di-"flatten" client-side jadi 1 baris tabel PER SPK yang disentuh tiap SJ
+  (dari `items[].penjualan_id`, fallback ke header `penjualan_id` utk SJ trip-linked lama) — 1
+  SJ yang lintas beberapa SPK jadi beberapa baris di tabel riwayat ini, supaya kolom SPK-nya
+  tetap 1 nilai per baris (lihat `flattenSjBySpk()` di `adminSpkBelumSj.js`).
+- Tab SJ: aktif = `GET /admin/sj` tanpa filter status (semua tercampur, memang tujuan utama tab
+  ini); riwayat = `GET /admin/sj?status=tervalidasi`.
 
 Tombol **Refresh** cuma re-fetch & re-render mode yang sedang aktif (tidak reset ke mode
-default). Kedua halaman full re-render tiap toggle/refresh (bukan patch DOM parsial) — konsisten
-dengan pola `adminDashboard.js` yang sudah ada.
+default, TIDAK reset ke halaman 1). Toggle Riwayat & submit pencarian SAMA-SAMA reset ke halaman
+1 (state lama jadi tidak relevan). Kedua halaman full re-render tiap toggle/refresh/ganti
+halaman (bukan patch DOM parsial) — konsisten dengan pola `adminDashboard.js` yang sudah ada.
+
+**Pagination & search (2026-08-20)** — ditambahkan setelah migrasi data historis
+(`ekspedisi-apk-backend`, lihat di atas) bikin tab SJ berpotensi punya 1.500+ baris; fetch semua
+tanpa batas jadi berat. `components/tableToolbar.js` sekarang terima `searchValue`/`onSearch`
+opsional (kotak cari muncul di bawah bar gelap kalau `onSearch` diisi, debounced ~400ms sambil
+ngetik + langsung saat Enter); `components/pagination.js` (baru) render kontrol
+Sebelumnya/Selanjutnya + "X-Y dari Z" di bawah `<table>` (otomatis sembunyi kalau cuma 1
+halaman). Kedua halaman (`adminSpkBelumSj.js`/`adminSuratJalan.js`) simpan state `page`/`query`
+di closure, kirim ke `GET /admin/sj`/`GET /admin/spk-belum-sj` via query string
+(`?q=&page=&per_page=`) — **breaking change** kontrak respons kedua endpoint itu, dari array
+polos jadi `{ data, total, page, per_page }` (lihat README `ekspedisi-apk-backend`). `per_page`
+tetap 20 (konstanta lokal tiap halaman, belum ada UI utk ganti ukuran halaman).
 
 **Penyesuaian toolbar (2026-08-20):** judul toolbar (`components/tableToolbar.js`) tetap literal
 **"Data | \<jumlah\>"** di semua halaman tabel (persis pola `<h3>Data | ...</h3>` di

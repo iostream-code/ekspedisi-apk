@@ -2,6 +2,7 @@ import $ from 'jquery';
 import { renderNavbar } from '../components/navbar.js';
 import { renderAdminTabs } from '../components/adminTabs.js';
 import { renderTableToolbar } from '../components/tableToolbar.js';
+import { renderPagination } from '../components/pagination.js';
 import { pageLoaderHtml, emptyStateHtml } from '../components/loader.js';
 import { api } from '../api.js';
 import { navigate } from '../router.js';
@@ -41,6 +42,13 @@ function flattenSjBySpk(sjList) {
  *   baris SJ di-"flatten" jadi beberapa baris tabel kalau items-nya
  *   menyentuh lebih dari 1 SPK sekaligus (2026-08-20), supaya kolom SPK di
  *   sini selalu 1 nilai per baris.
+ * Server-side pagination+search di kedua mode (2026-08-20, tab ini bisa py
+ * banyak baris jg setelah migrate_legacy_surat_jalan.php nambahin ribuan SJ
+ * historis) -- total/page/per_page pada paginasi selalu mengacu ke jumlah
+ * baris SUMBER (SPK atau SJ) dari server, BUKAN jumlah baris hasil flatten
+ * yang ditampilkan (mode Riwayat bisa nampilin lebih banyak baris dari
+ * per_page kalau ada SJ yang nyentuh >1 SPK -- itu memang konsekuensi
+ * flatten-nya, bukan bug).
  */
 export async function renderAdminSpkBelumSj($container) {
   renderNavbar($container, 'Ekspedisi');
@@ -50,30 +58,42 @@ export async function renderAdminSpkBelumSj($container) {
   $container.append($main);
 
   let historyMode = false;
+  let query = '';
+  let page = 1;
+  const perPage = 20;
 
   async function load() {
     $main.html(`<div class="card overflow-hidden">${pageLoaderHtml('Memuat data...')}</div>`);
 
-    let rows;
+    const params = new URLSearchParams({ ...(query ? { q: query } : {}), page: String(page), per_page: String(perPage) });
+    let result;
     try {
-      rows = historyMode ? flattenSjBySpk(await api.get('/admin/sj')) : await api.get('/admin/spk-belum-sj');
+      result = await api.get(`${historyMode ? '/admin/sj' : '/admin/spk-belum-sj'}?${params}`);
     } catch (e) {
       $main.html('<p class="p-4 text-status-alert">Gagal memuat data.</p>');
       return;
     }
-    render(rows);
+    render(result);
   }
 
-  function render(rows) {
+  function render({ data, total }) {
+    const rows = historyMode ? flattenSjBySpk(data) : data;
     const $card = $(`<div class="card overflow-hidden"></div>`);
     $main.empty().append($card);
 
     renderTableToolbar($card, {
-      count: rows.length,
+      count: total,
       historyActive: historyMode,
       onRefresh: load,
       onToggleHistory: () => {
         historyMode = !historyMode;
+        page = 1;
+        load();
+      },
+      searchValue: query,
+      onSearch: (val) => {
+        query = val;
+        page = 1;
         load();
       },
     });
@@ -133,6 +153,16 @@ export async function renderAdminSpkBelumSj($container) {
 
     $tableWrap.append($table);
     $card.append($tableWrap);
+
+    renderPagination($card, {
+      page,
+      perPage,
+      total,
+      onPageChange: (p) => {
+        page = p;
+        load();
+      },
+    });
   }
 
   await load();

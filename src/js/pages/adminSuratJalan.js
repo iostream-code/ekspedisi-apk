@@ -2,6 +2,7 @@ import $ from 'jquery';
 import { renderNavbar } from '../components/navbar.js';
 import { renderAdminTabs } from '../components/adminTabs.js';
 import { renderTableToolbar } from '../components/tableToolbar.js';
+import { renderPagination } from '../components/pagination.js';
 import { pageLoaderHtml, emptyStateHtml, setButtonLoading } from '../components/loader.js';
 import { api } from '../api.js';
 import { navigate } from '../router.js';
@@ -35,8 +36,12 @@ function fotoUrl(path) {
  * Dua mode:
  * - Aktif (default): SEMUA status (draft/terkirim/tervalidasi) tercampur --
  *   ini memang tujuan utama tab ini, supaya admin lihat progres apa adanya.
- * - Riwayat: filter cuma status 'tervalidasi' (SJ yang closing-nya sudah
- *   selesai) -- diturunkan client-side dari data yang sama, tanpa endpoint baru.
+ * - Riwayat: filter status='tervalidasi' (SJ yang closing-nya sudah selesai).
+ * Server-side pagination+search (2026-08-20, tabel ini bisa py ribuan baris
+ * stlh migrate_legacy_surat_jalan.php) -- historyMode JUGA jadi filter
+ * server (?status=tervalidasi), BUKAN filter client-side lagi, krn cuma 1
+ * halaman data yang ada di browser kapan pun (filter client-side thd 1
+ * halaman = hasil salah/tidak lengkap).
  */
 export async function renderAdminSuratJalan($container) {
   renderNavbar($container, 'Ekspedisi');
@@ -49,34 +54,49 @@ export async function renderAdminSuratJalan($container) {
   $main.append($tableSection);
 
   let historyMode = false;
+  let query = '';
+  let page = 1;
+  const perPage = 20;
 
   async function load() {
     $tableSection.html(`<div class="card overflow-hidden">${pageLoaderHtml('Memuat data...')}</div>`);
 
-    let list;
+    let result;
     try {
-      list = await api.get('/admin/sj');
+      result = await api.get(`/admin/sj?${new URLSearchParams({
+        ...(historyMode ? { status: 'tervalidasi' } : {}),
+        ...(query ? { q: query } : {}),
+        page: String(page),
+        per_page: String(perPage),
+      })}`);
     } catch (e) {
       $tableSection.html('<p class="p-4 text-status-alert">Gagal memuat data.</p>');
       return;
     }
-    render(historyMode ? list.filter((sj) => sj.status === 'tervalidasi') : list);
+    render(result);
   }
 
-  function render(list) {
+  function render({ data: list, total }) {
     const $card = $(`<div class="card overflow-hidden"></div>`);
     $tableSection.empty().append($card);
 
     renderTableToolbar($card, {
-      count: list.length,
+      count: total,
       historyActive: historyMode,
       onRefresh: load,
       onToggleHistory: () => {
         historyMode = !historyMode;
+        page = 1;
         load();
       },
       addLabel: '+ Buat SJ',
       onAdd: () => navigate('/admin/sj/new'),
+      searchValue: query,
+      onSearch: (val) => {
+        query = val;
+        page = 1;
+        load();
+      },
     });
 
     if (!list.length) {
@@ -188,6 +208,16 @@ export async function renderAdminSuratJalan($container) {
 
     $tableWrap.append($table);
     $card.append($tableWrap);
+
+    renderPagination($card, {
+      page,
+      perPage,
+      total,
+      onPageChange: (p) => {
+        page = p;
+        load();
+      },
+    });
   }
 
   await load();
