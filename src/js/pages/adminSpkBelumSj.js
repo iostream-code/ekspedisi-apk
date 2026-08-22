@@ -182,7 +182,7 @@ export async function renderAdminSpkBelumSj($container) {
     // perlu scroll dokumen (2026-08-20, konsisten dgn adminSuratJalan.js).
     const $tableWrap = $(`<div class="scroll-area max-h-[65vh] overflow-auto"></div>`);
     const $table = $(`
-      <table class="w-full text-sm">
+      <table class="w-full text-sm tbl-bordered">
         <thead class="sticky top-0 z-10 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-400">
           <tr>
             ${historyMode

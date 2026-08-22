@@ -290,7 +290,7 @@ export async function renderAdminSuratJalan($container) {
     // (toolbar & paginasi tetap kelihatan tanpa perlu scroll dokumen).
     const $tableWrap = $(`<div class="scroll-area max-h-[65vh] overflow-auto"></div>`);
     const $table = $(`
-      <table class="w-full text-sm">
+      <table class="w-full text-sm tbl-bordered">
         <thead class="sticky top-0 z-10 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-400">
           <tr>
             <th class="whitespace-nowrap px-3 py-2 text-center">No SJ</th>

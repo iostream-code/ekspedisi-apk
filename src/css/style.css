@@ -197,6 +197,49 @@
   background: transparent;
 }
 
+/* Border vertikal + horizontal tabel admin (SJ/SPK/Ekspedisi list) -- selaras
+   dgn tabel inventory-apk (.tbl-dark/.tbl-bordered di main.css sana, tabel
+   app itu MEMANG py border kolom+baris) -- tabel app ini sebelumnya cuma
+   andalkan `divide-y divide-slate-100` di <tbody> utk garis antar baris,
+   tidak ada garis vertikal sama sekali. Class terpisah (bukan diinject ke
+   base <table>) supaya tabel yang belum sempat disesuaikan tidak ikut
+   berubah tak sengaja -- tambahkan ke <table> yang mau dapat border ini.
+   Border baris DITULIS ULANG di level <td>/<th> di sini (bukan cuma
+   mengandalkan divide-y yang taruh border di level <tr>) -- Tailwind
+   preflight set `border-collapse: collapse` bawaan utk SEMUA <table>, dan
+   spec border-collapse HANYA mempertimbangkan border di sel (td/th), bukan
+   di tr/tbody -- border dari divide-y berisiko tidak pernah kelihatan sama
+   sekali begitu border-collapse aktif (yg mana sudah aktif dari awal via
+   preflight). `divide-y` di markup TETAP dibiarkan (harmless kalaupun
+   percuma), tapi border baris yang SUNGGUH2 dipakai sekarang dari sini.
+   Warna slate.200 (BUKAN slate.100) -- dicoba dulu pakai slate.100 tapi
+   nyaris tak kelihatan (kontras terlalu rendah thd bg-slate-50/putih,
+   dicek visual via screenshot Playwright). slate.200 = #e2e8f0, persis
+   sama dgn `border-surface-overlay` inventory-apk (surface.overlay di
+   tailwind.config.js sana) -- baru match bobot border yg dimaksud. */
+.tbl-bordered {
+  border-collapse: collapse;
+}
+
+.tbl-bordered th,
+.tbl-bordered td {
+  border-right: 1px solid theme('colors.slate.200');
+  border-bottom: 1px solid theme('colors.slate.200');
+}
+
+.tbl-bordered thead th {
+  border-bottom: 1px solid theme('colors.slate.300');
+}
+
+.tbl-bordered tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.tbl-bordered th:last-child,
+.tbl-bordered td:last-child {
+  border-right: none;
+}
+
 /* =============================================================================
    LOGIN PAGE (src/js/pages/login.js)
    Layout/style disamakan dgn inventory-apk (2026-08-21) -- kartu kaca +
