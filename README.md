@@ -2,7 +2,7 @@
 
 _(dulu bernama "Tracking Supir" / `driver-apk` — sedang berkembang jadi aplikasi ekspedisi yang
 lebih luas: supir internal & eksternal, plotting SPK, rencana modul surat jalan menyusul. Lihat
-README [`ekspedisi-apk-backend`](../ekspedisi-apk-backend) bagian "Riwayat nama" untuk detail.)_
+README [`backend-migrasi`](../backend-migrasi) bagian "Riwayat nama" untuk detail.)_
 
 Aplikasi mobile (Cordova) untuk tracking supir pengiriman: satu app dengan dua role —
 **supir** (toggle status online/istirahat/offline, kirim lokasi berkala, isi 3 checkpoint
@@ -12,7 +12,7 @@ per supir).
 **Status: prototype/demo.** `platforms/` belum pernah di-generate (`cordova platform add`
 belum dijalankan), dan secara default app jalan dalam **mode mock** (`MOCK_MODE: true` di
 `src/js/config.js`) — semua data dummy, disimpan di memori, hilang tiap refresh. Backend
-nyata untuk app ini ada di [`../ekspedisi-apk-backend`](../ekspedisi-apk-backend) (project Slim 4
+nyata untuk app ini ada di [`../backend-migrasi`](../backend-migrasi) (project Slim 4
 terpisah, tanpa ORM/migration, auth token Bearer via JWT — lihat bagian "Menyambungkan ke
 backend nyata").
 
@@ -84,7 +84,7 @@ ekspedisi-apk/
   (`surat-jalan-apk`, `produksi-apk` — dashed border putih saat idle, glow hijau `#00ff00`
   berdenyut pelan saat `connected`, glow merah `#ff0000` berdenyut cepat saat `disconnected`).
   **Beda cara deteksinya**: app Framework7 lama itu ping endpoint `/check-internet-sj` tiap saat
-  (sekalian cek versi app & password) — `ekspedisi-apk-backend` tidak punya endpoint semacam
+  (sekalian cek versi app & password) — `backend-migrasi` tidak punya endpoint semacam
   itu, jadi di sini cukup `navigator.onLine` + event `online`/`offline` browser (WebView Cordova
   sudah cukup akurat lewat itu). Listener dipasang SEKALI di level module (bukan tiap render
   navbar) — tiap event fire, cari elemen `#connection-indicator` yang SEDANG ada di DOM.
@@ -94,6 +94,37 @@ ekspedisi-apk/
   `public/` di root ini (Vite `publicDir`) beda dari `res/` konvensi Cordova (ikon/splash
   native, belum dipakai saat ini) — sengaja dipisah supaya tidak campur aduk dua konvensi
   berbeda (2026-08-20, sebelumnya sempat digabung jadi `res/public/`).
+
+## Sinkronisasi tampilan dengan `inventory-apk` (2026-08-21 & 2026-08-22)
+
+[`inventory-apk`](../inventory-apk) (Cordova baru, dibuat 2026-08-21 dgn setup mengikuti app
+ini — lihat README di sana) & app ini dimaksudkan terasa satu keluarga visual. Sebagian
+penyesuaian jalan **dua arah** — beberapa elemen dari `inventory-apk` disalin balik ke sini:
+
+- **`login.js` dirombak strukturnya** — layout kartu-kaca+grid+orb, judul app, quotes, toggle
+  show/hide password, dan footer satu baris disamakan dgn struktur `inventory-apk`. Logo diganti
+  ke `logo_koperindo_hitam.png` (flat, dipakai `inventory-apk` juga) — sebelumnya app ini pakai
+  `logo_koperindo.jpeg` dgn backdrop lingkaran baked-in di file gambarnya.
+- **Ukuran topbar & tab bar disamakan ke `inventory-apk`** (2026-08-22) — `navbar.js`: padding
+  topbar `py-2.5` → `py-2`. `adminTabs.js`: padding/gap tab bar `px-3 py-2 gap-1.5` →
+  `px-1.5 py-1 gap-1`, tombol tab `rounded-lg text-sm font-semibold` → `rounded-md text-xs
+  font-bold`. **Arah sebaliknya dari kebanyakan perubahan lain di bagian ini** — di sini
+  `inventory-apk` jadi acuan ukurannya, app ini yang menyesuaikan.
+- **Warna tab tidak aktif digelapkan** (2026-08-22) — `adminTabs.js`: `text-slate-500` →
+  `text-slate-600`, konsisten dgn perubahan serupa di `inventory-apk/src/lib/shell.js`
+  (`hnt-tab-primary` dikasih latar `bg-slate-100` di sana).
+- **Gaya tombol disamakan ke tab Partner `inventory-apk`** (2026-08-22) — `style.css`:
+  `.btn-brand`/`.btn-route`/`.btn-ghost` — `rounded-xl` → `rounded-md`, `py-3.5` → `py-3`,
+  `shadow-card` dihapus, `font-semibold` → `font-bold`, tambah `hover:brightness-95`
+  (`.btn-ghost` pakai `hover:bg-slate-50` sebagai gantinya krn `brightness` tidak kelihatan
+  efeknya di atas putih polos). `.btn-table-action`: `rounded-lg` → `rounded-md` — cuma bentuk
+  sudut yang diseragamkan, skema warna (tetap abu-abu gelap seragam apa pun jenis aksinya, lihat
+  bagian "Tombol kolom Aksi disamakan ukurannya" di atas) sengaja TIDAK ikut disentuh.
+  - **Catatan (dead code, bukan bug):** `.btn-brand` ternyata sudah tidak dipakai di JS manapun
+    sejak `login.js` dirombak pakai class `.lsc-btn` sendiri (poin pertama di atas) — Tailwind
+    JIT otomatis mem-purge-nya dari `www/` hasil build krn tidak pernah ke-reference. Class-nya
+    dibiarkan tetap ada di `style.css` (bukan bug, sengaja tidak dihapus krn di luar cakupan
+    perubahan sinkronisasi ini).
 
 ## Setup & development
 
@@ -127,20 +158,20 @@ AUTO_LOGIN_ROLE: 'driver', // 'driver' | 'admin' | null — bypass halaman login
 
 Set `MOCK_MODE: false` di `src/js/config.js`. `API_BASE_URL` defaultnya sudah
 `http://127.0.0.1:8000` (dev server `php -S 127.0.0.1:8000 -t public` di
-[`ekspedisi-apk-backend`](../ekspedisi-apk-backend)) — ganti kalau backend jalan di host/port
+[`backend-migrasi`](../backend-migrasi)) — ganti kalau backend jalan di host/port
 lain. **Tanpa suffix `/api`** — beda dari `backend-production`, route Slim di
-`ekspedisi-apk-backend` tidak pakai prefix itu (`/login`, `/driver/me`, dst langsung dari root).
+`backend-migrasi` tidak pakai prefix itu (`/login`, `/driver/me`, dst langsung dari root).
 
 Auth-nya **token Bearer (JWT), bukan cookie/session** — beda dari kebanyakan app lain di
 workspace ini yang pakai `backend-production` (session-based, butuh
 `withCredentials`+CORS-credentials khusus). Login cuma **1 request**: `POST /login` balikin
 `{ token, role, user }` langsung (lihat `auth.js`), token disimpan di localStorage lalu
 dikirim manual lewat header `Authorization: Bearer <token>` di tiap request selanjutnya
-(`api.js`). Tidak perlu konfigurasi CORS khusus di sisi backend — `ekspedisi-apk-backend`
+(`api.js`). Tidak perlu konfigurasi CORS khusus di sisi backend — `backend-migrasi`
 sudah mengizinkan semua origin tanpa kredensial (lihat CORS middleware-nya) karena tidak
 ada cookie yang dikirim lintas-origin.
 
-`ekspedisi-apk-backend` login pakai akun pegawai yang sudah ada (`shared_m_users`, database
+`backend-migrasi` login pakai akun pegawai yang sudah ada (`shared_m_users`, database
 produksi yang sama dipakai `backend-production`) — supir/admin tidak perlu akun baru khusus
 app ini, tapi role admin baru aktif kalau `user_id`-nya sudah di-seed ke
 `ekspedisi_m_admin_access` (lihat README backend-nya).
@@ -149,7 +180,7 @@ app ini, tapi role admin baru aktif kalau `user_id`-nya sudah di-seed ke
 
 Sumber kebenaran endpoint & bentuk data adalah `src/js/mock.js` (dibuat mengikuti apa yang
 benar-benar dipanggil `api.js`/pages), dan cocok persis dengan
-[`ekspedisi-apk-backend`](../ekspedisi-apk-backend) yang sekarang jadi backend resminya.
+[`backend-migrasi`](../backend-migrasi) yang sekarang jadi backend resminya.
 
 | Method | Endpoint | Dipanggil dari | Request | Response |
 |---|---|---|---|---|
@@ -188,7 +219,7 @@ kadaluarsa, bukan 200 dengan pesan error di body.
 `no_surat_jalan` di form "Perjalanan Baru" **opsional** — tautan ke SJ resmi (tabel
 `surat_jalan` milik `backend-production`, dibuat lewat `surat-jalan-apk`/app lain). Cuma
 tautan by-nomor, belum ada auto-fill/validasi CS otomatis — detail lengkap & batasannya ada
-di README `ekspedisi-apk-backend`.
+di README `backend-migrasi`.
 
 **Halaman "SPK Siap Kirim" / "Plot SPK ke Supir" (`#/admin/spk-kirim`) DIHAPUS (2026-08-20).**
 Dulu daftar order yang sudah disetujui utk dikirim tapi belum diplot ke supir manapun, admin
@@ -210,7 +241,7 @@ opsional — lihat catatan di bawah), isi `tujuan`/`kendaraan`/`plat`/`penerima`
 belakangan lewat `PUT /admin/sj/:id` (backend siap, UI edit belum ada). Nomor `no_surat_jalan`
 (format `SJ-YYYYMMDD-xxxx`) di-generate otomatis oleh backend setelah insert — sengaja tetap
 begitu, tidak diketik manual seperti di `surat-jalan-apk`. Detail penuh (struktur kolom, FK,
-alasan skema terpisah) ada di README `ekspedisi-apk-backend`.
+alasan skema terpisah) ada di README `backend-migrasi`.
 
 **Terikat ke SPK, dengan breakdown per produk — BOLEH LINTAS BEBERAPA SPK** (2026-08-20,
 direvisi hari yang sama) — ditelusuri ulang alur input SJ asli, ternyata SJ **selalu** melekat
@@ -229,7 +260,7 @@ sampel/transfer internal) dengan jumlah kirim manual seperti sebelumnya. Breakdo
 ditampilkan juga di kolom "Kirim" pada tabel `adminSuratJalan.js`, dan daftar SPK yang disentuh
 (bisa lebih dari satu, dipisah koma) di kolom "No SJ". Detail lengkap (kenapa tabel item
 terpisah, kenapa validasi per-item bukan per-SPK, kenapa sisa qty dihitung lintas 2 sumber) ada
-di README `ekspedisi-apk-backend`.
+di README `backend-migrasi`.
 
 **Entry point dari tab "SPK"** (2026-08-20) — tombol "Surat Jalan" di `adminSpkBelumSj.js`
 (lihat bagian Routing di bawah) nitip `penjualan_id` yang dipilih lewat `prefill.js` (state
@@ -254,10 +285,10 @@ penerima saat barang diterima → dibawa balik ke admin → admin foto dokumen f
 "Tervalidasi", foto final ditampilkan (border teal, beda dari foto checkpoint biasa), dan
 tombolnya hilang — SJ yang sudah tervalidasi tidak bisa divalidasi ulang (backend menolak 422).
 Detail penuh (kenapa 3 status, kenapa foto checkpoint & foto validasi disimpan terpisah) ada di
-README `ekspedisi-apk-backend`.
+README `backend-migrasi`.
 
 **Data historis (`asal='migrasi_legacy'`)** (2026-08-20) — hasil `migrate_legacy_surat_jalan.php`
-di `ekspedisi-apk-backend` (data `surat_jalan` lama sejak 2024, lihat README di sana). Baris
+di `backend-migrasi` (data `surat_jalan` lama sejak 2024, lihat README di sana). Baris
 begini tampil badge abu-abu **"Data Lama"** di sebelah status pada tabel `adminSuratJalan.js`,
 biasanya tanpa supir (`driver_id` NULL — data lama tidak match andal ke supir manapun) dan
 fotonya di-host di domain lama (`indokoper.com`), BUKAN di `API_BASE_URL` app ini sendiri.
@@ -287,7 +318,7 @@ default, TIDAK reset ke halaman 1). Toggle Riwayat & submit pencarian SAMA-SAMA 
 halaman (bukan patch DOM parsial) — konsisten dengan pola `adminDashboard.js` yang sudah ada.
 
 **Pagination & search (2026-08-20)** — ditambahkan setelah migrasi data historis
-(`ekspedisi-apk-backend`, lihat di atas) bikin tab SJ berpotensi punya 1.500+ baris; fetch semua
+(`backend-migrasi`, lihat di atas) bikin tab SJ berpotensi punya 1.500+ baris; fetch semua
 tanpa batas jadi berat. `components/tableToolbar.js` sekarang terima `searchValue`/`onSearch`
 opsional (kotak cari muncul di bawah bar gelap kalau `onSearch` diisi, debounced ~400ms sambil
 ngetik + langsung saat Enter); `components/pagination.js` (baru, tampilannya sendiri direvisi
@@ -295,7 +326,7 @@ ngetik + langsung saat Enter); `components/pagination.js` (baru, tampilannya sen
 `<table>` (otomatis sembunyi kalau cuma 1 halaman). Kedua halaman (`adminSpkBelumSj.js`/`adminSuratJalan.js`) simpan state `page`/`query`
 di closure, kirim ke `GET /admin/sj`/`GET /admin/spk-belum-sj` via query string
 (`?q=&page=&per_page=`) — **breaking change** kontrak respons kedua endpoint itu, dari array
-polos jadi `{ data, total, page, per_page }` (lihat README `ekspedisi-apk-backend`). `per_page`
+polos jadi `{ data, total, page, per_page }` (lihat README `backend-migrasi`). `per_page`
 tetap 20 (konstanta lokal tiap halaman, belum ada UI utk ganti ukuran halaman).
 
 **Penyesuaian toolbar (2026-08-20):** judul toolbar (`components/tableToolbar.js`) tetap literal
@@ -359,7 +390,7 @@ dgn response terbaru duluan supaya kalau Detail dibuka SESUDAHNYA datanya sudah 
 **"Klien 1 | Klien 2"** (bukan baris baru per klien) kalau >1 SPK/klien tersentuh, supaya lebar
 baris tetap 1 baris (tidak menurun) — konsisten dgn kolom lain yang `whitespace-nowrap`. Datanya
 dari field baru `client_names` (array) di response `GET /admin/sj` — lihat
-`App\Support\SuratJalan::resolveClientNames()` di README `ekspedisi-apk-backend` (JOIN
+`App\Support\SuratJalan::resolveClientNames()` di README `backend-migrasi` (JOIN
 `t_penjualan_header`/`m_client`, sumber SPK-nya dari `items[].penjualan_id` kalau ada, fallback
 ke `penjualan_id` header utk SJ trip-linked lama yang tidak py breakdown item).
 
@@ -369,7 +400,7 @@ ke `penjualan_id` header utk SJ trip-linked lama yang tidak py breakdown item).
 (`adminSpkKirim.js`, `#/admin/spk-kirim`, dulu drill-down dari tab Ekspedisi) dianggap **redundan**
 — supir melekat ke pengiriman (SJ), pengiriman melekat ke SPK, jadi tidak perlu langkah plotting
 TERPISAH SEBELUM SJ ada lagi. File & route-nya **DIHAPUS** sepenuhnya (lihat detail penuh &
-alasan lengkap di README `ekspedisi-apk-backend`, bagian "Tab Ekspedisi jadi murni monitoring").
+alasan lengkap di README `backend-migrasi`, bagian "Tab Ekspedisi jadi murni monitoring").
 
 `adminDashboard.js` (tab "Ekspedisi") sekarang **murni monitoring** — peta live + list cuma
 nampilin supir yang **SEDANG mengirim** (`GET /admin/drivers` di-filter server-side sejak
@@ -392,7 +423,7 @@ perubahan ini, dulu balikin SEMUA supir tanpa syarat). Perubahan konkret di hala
 **Assignment sekarang murni lewat field "Supir" (WAJIB) di form "Buat Surat Jalan"**
 (`adminNewSuratJalan.js`) — tidak ada perubahan di form itu sendiri (field & alurnya SAMA seperti
 sebelumnya), yang berubah di baliknya: begitu SJ tersimpan dgn supir **internal**, backend
-OTOMATIS bikin trip & menautkannya (lihat `POST /admin/sj` di README `ekspedisi-apk-backend`) —
+OTOMATIS bikin trip & menautkannya (lihat `POST /admin/sj` di README `backend-migrasi`) —
 supir itu tetap bisa lihat tugasnya & checkpoint foto sendiri lewat dashboard/`driverWorkflow.js`
 di app-nya, PERSIS seperti kalau dulu di-plot manual, cuma sekarang otomatis tanpa langkah
 terpisah. Supir eksternal sengaja TIDAK dibikinkan trip (tidak bisa login/checkpoint apa pun) —
@@ -407,7 +438,7 @@ sama, `openForm()`, cuma beda judul & nilai awal), checkbox "Tampilkan nonaktif"
 `?all=1`. Field `is_active` cuma muncul di modal Edit (perusahaan baru selalu mulai aktif) --
 "nonaktifkan" (bukan hapus) lewat checkbox itu, submit-nya `PUT`.
 
-Backend-nya (lihat README `ekspedisi-apk-backend` bagian "Master perusahaan ekspedisi eksternal")
+Backend-nya (lihat README `backend-migrasi` bagian "Master perusahaan ekspedisi eksternal")
 sekarang tabel LOKAL (`ekspedisi_m_ekspedisi`) — dulu `GET /admin/ekspedisi` baca `m_expedisi`
 milik backend-production (READ-ONLY, `id_expedisi`/`kode_expedisi`/`nama_expedisi`); field-nya
 ikut berganti nama (`id`/`kode_ekspedisi`/`nama_ekspedisi`) — makanya dropdown "Perusahaan
@@ -589,7 +620,7 @@ Cordova CLI menyuntikkan file itu otomatis saat build.
 `usesCleartextTraffic` diaktifkan (perlu kalau `API_BASE_URL` masih http, bukan https, saat
 development).
 
-Sebelum rilis sungguhan, ganti placeholder di `config.xml`: `id="com.perusahaan.ekspedisi"`
+Sebelum rilis sungguhan, ganti placeholder di `config.xml`: `id="com.koperindo.ekspedisi"`
 dan `<author email="dev@example.com">` masih nilai default template.
 
 ### Dua bug build Android yang sudah pernah kejadian & sudah di-fix (2026-08-20)
@@ -629,7 +660,7 @@ beda-beda, keduanya sekarang sudah ditangani otomatis:
 Verifikasi: `cordova build android` sukses penuh (`BUILD SUCCESSFUL`), APK debug ada di
 `platforms/android/app/build/outputs/apk/debug/app-debug.apk`.
 
-## Icon dan splashscreen app (2026-08-20)
+## Icon dan splashscreen app (2026-08-20, splashscreen diperbaiki lagi 2026-08-21)
 
 Sebelumnya app ini masih pakai icon/splashscreen DEFAULT Cordova (burung/robot generik) --
 diganti pakai logo asli perusahaan (`public/logo_koperindo.jpeg`, "Koper Indonesia", sudah
@@ -637,12 +668,55 @@ dipakai juga di navbar app). Sumber icon/splash disimpan di `resources/` (root p
 di-gitignore, beda dari `platforms/`/`www/` -- source ini harus ikut ter-commit krn tidak bisa
 di-generate ulang otomatis dari `public/logo_koperindo.jpeg` tanpa proses manual di bawah):
 
-- `resources/icon.png` -- source icon FLAT (persegi, logo apa adanya).
-- `resources/splash.png` -- source splashscreen: kanvas putih 2000x2000 dengan logo kecil (30%)
-  di tengah, SENGAJA jauh dari tepi supaya aman dari crop `--fit cover` ke rasio potret manapun
-  (app dikunci portrait only, splash landscape tidak digenerate).
+- `resources/icon.png` -- source icon FLAT (persegi, logo apa adanya, dengan background
+  gradient abu-abu muda melingkar sudah menyatu di dalam file). Sekarang JUGA dipakai sebagai
+  source splashscreen icon (lihat bawah), bukan cuma app icon.
+- `resources/splash.png` -- source splashscreen versi LAMA (kanvas putih 2000x2000, fit-cover
+  per-density) -- SUDAH TIDAK DIPAKAI sejak 2026-08-21, lihat root cause di bawah. Dibiarkan ada
+  cuma buat referensi historis, jangan bingung kalau lihat file ini masih ada.
 - `resources/android/icon-foreground.png` -- percobaan adaptive-icon (lihat catatan di bawah,
   TIDAK terpakai efektif, disimpan buat referensi kalau nanti dicoba lagi).
+
+### Root cause splashscreen sempat tetap default Cordova walau `<splash>` sudah diisi (2026-08-21)
+
+`config.xml` sempat berisi tag `<splash density="port-*" src="resources/android/splash/..." />`
+(generated dari `resources/splash.png` lewat `cordova-res --type splash`) dan file-nya memang
+BENAR ada di dalam APK jadi (`res/drawable-port-xxxhdpi-v4/splash.png` dkk) -- tapi splashscreen
+yang tampil di HP tetap logo Cordova default. Root cause: **`cordova-android` versi project ini
+(`^15.1.0`) sudah TIDAK MEMBACA tag `<splash>` sama sekali** -- sejak cordova-android 12, splash
+screen Android dikontrol lewat Android 12 SplashScreen API (AndroidX Core SplashScreen), bukan
+lagi lewat drawable per-density seperti dulu. `cordova-android/lib/prepare.js` bahkan eksplisit
+emit warning "The `<splash>` tags were detected and are no longer supported" tiap `cordova
+prepare` -- tapi warning ini gampang kelewat/gak keliatan pas `cordova build` biasa. Verifikasi
+sebelumnya (2026-08-20, di bawah) SALAH SASARAN: yang dicek cuma "file splash.png ada di APK",
+padahal file itu orphan/tidak pernah direferensikan theme manapun -- yang beneran dipakai adalah
+`res/values/cdv_themes.xml` (`Theme.App.SplashScreen`) dan `res/drawable*/ic_cdv_splashscreen.*`,
+yang waktu itu masih persis default cordova-android (diverifikasi lewat `diff` byte-for-byte).
+
+Perbaikan: tag `<splash>` dihapus dari `config.xml`, diganti preference baru (lihat juga contoh
+yang sama di `absensi-v2`/`purchase-finance-apk`, sama-sama `cordova-android` v14/v15):
+
+```xml
+<preference name="AndroidWindowSplashScreenAnimatedIcon" value="resources/icon.png" />
+<preference name="AndroidWindowSplashScreenBackground" value="#FFFFFF" />
+```
+
+`resources/android/splash/` (output `cordova-res --type splash` yang lama) sudah dihapus dari
+repo karena jadi dead file -- generated output, bukan source, dan sudah tidak dipakai jalur mana
+pun. Kalau suatu saat perlu lagi (mis. downgrade cordova-android ke versi lama yang masih pakai
+`<splash>`), regenerate dari `resources/splash.png` pakai command `cordova-res` yang masih
+didokumentasikan di bawah.
+
+Verifikasi hasil akhir (2026-08-21), JANGAN cuma percaya log `cordova build`, cek APK jadi:
+
+```bash
+aapt2 dump resources platforms/android/app/build/outputs/apk/debug/app-debug.apk \
+  | grep -A5 'style/Theme.App.SplashScreen'
+# windowSplashScreenBackground harus #ffffffff, windowSplashScreenAnimatedIcon @drawable/ic_cdv_splashscreen
+unzip -p platforms/android/app/build/outputs/apk/debug/app-debug.apk \
+  res/drawable-nodpi-v4/ic_cdv_splashscreen.png | md5sum
+md5sum resources/icon.png   # harus SAMA -- berarti logo Koperindo, bukan vektor default cordova
+```
 
 Regenerasi (kalau logo perusahaan berubah lagi ke depannya):
 
@@ -678,9 +752,11 @@ lalu verifikasi isi APK jadi (`unzip -l app-debug.apk | grep mipmap.*v26`) sebel
 benar-benar kepakai -- JANGAN cuma percaya log `cordova-res` ("Copied N resource items"), log itu
 tidak mendeteksi kalau `cordova prepare` diam-diam menghapusnya lagi setelahnya.
 
-Verifikasi hasil akhir (2026-08-20): extract `res/mipmap-xxxhdpi-v4/ic_launcher.png` dan
-`res/drawable-port-xxxhdpi-v4/splash.png` langsung dari `app-debug.apk` jadi, dicek visual --
-keduanya logo Koper Indonesia yang benar, bukan default Cordova lagi.
+Verifikasi hasil akhir (2026-08-20): extract `res/mipmap-xxxhdpi-v4/ic_launcher.png` langsung
+dari `app-debug.apk` jadi, dicek visual -- logo Koper Indonesia yang benar, bukan default Cordova
+lagi. (Catatan koreksi 2026-08-21: verifikasi splash `res/drawable-port-xxxhdpi-v4/splash.png` di
+sesi ini KELIRU -- file itu ada di APK tapi ternyata orphan/tidak pernah dipakai runtime; root
+cause dan perbaikan yang benar ada di bagian "Root cause splashscreen..." di atas.)
 
 ## Format nomor SPK (2026-08-20)
 
@@ -721,7 +797,7 @@ Cordova, "tab baru" di sana pengalamannya kurang mulus).
 
 Semua foto yang diupload dari app ini (checkpoint trip, foto SJ/validasi) sekarang dikonversi ke
 **WEBP** di sisi backend sebelum disimpan (`App\Support\PhotoStorage::save()`, lihat README
-`ekspedisi-apk-backend`) — tidak ada perubahan di sisi frontend utk ini (`camera.js`/`api.js`
+`backend-migrasi`) — tidak ada perubahan di sisi frontend utk ini (`camera.js`/`api.js`
 tetap kirim blob foto asli apa adanya, konversi murni tanggung jawab server). Foto tersimpan di
 folder **per konteks masing-masing** di server (`public/uploads/trips/{trip_id}/` utk checkpoint
 supir, `public/uploads/sj/{id}/` utk foto SJ) — bukan folder baru, konvensi ini sudah ada
@@ -789,7 +865,7 @@ di sini drivernya SUDAH ADA, jadi upload langsung per-slot, mirip pola tombol "V
 Pola yang SAMA dipakai app lain di workspace ini (`absensi-apk`, `finance-apk`, `admin-finance-apk`)
 — app polling backend tiap 30 detik nanya "versi saya masih boleh dipakai?", kalau tidak ->
 alert pesan dari server + paksa logout. `config_id` yang dipakai: **`VERSION_EKSPEDISI_PUSAT`**
-(lihat README `ekspedisi-apk-backend` bagian "Cek versi app" utk detail backend & skema tabel
+(lihat README `backend-migrasi` bagian "Cek versi app" utk detail backend & skema tabel
 `config`-nya).
 
 **`src/js/versionCheck.js`** (`initVersionCheck()`, dipanggil sekali di `bootstrap()` `main.js`,
@@ -825,7 +901,7 @@ app ini Vite/ESM, `app-version.js` di sini pakai `export const` biasa, di-`impor
 
 Adaptasi dari pola LAMA yang dipakai `absensi-apk` (`AbsenController::checkInternetAbsen()`,
 exact-match `config_value_string`, digabung sama urusan lain kayak ijin/last_login) —
-`ekspedisi-apk-backend` ikut konvensi TERBARU yang dipakai `finance-apk`/`admin-finance-apk`
+`backend-migrasi` ikut konvensi TERBARU yang dipakai `finance-apk`/`admin-finance-apk`
 (`API\Config\VersionController` di `backend-production`): `current_version_code` **integer**
 (Android versionCode) dibandingkan `>=` ke `config_value_minimal`, bukan exact-match string --
 lebih fleksibel, admin bisa naikkan syarat minimal tanpa perlu tahu persis versi apa yang beredar
@@ -841,11 +917,11 @@ di device masing-masing.
   foto (`berangkat`/`serah_terima`/`sj`) tidak relevan utk trip tipe ini. **Sudah ada jalan
   keluarnya (2026-08-19):** tombol "Tandai Selesai" di `adminDriverDetail.js`, tampil khusus
   utk trip aktif milik supir eksternal, panggil `POST /admin/trips/:id/complete` — detail
-  keputusan (kenapa ditolak utk supir internal) ada di README `ekspedisi-apk-backend`.
+  keputusan (kenapa ditolak utk supir internal) ada di README `backend-migrasi`.
 - **Pengajuan biaya ke finance** — backend (`POST`/`GET /admin/trips/{trip}/pengajuan-biaya`)
   sudah siap, tapi belum ada form/tombol di `ekspedisi-apk` utk memakainya, dan belum ada
   approve/reject dari sisi finance sama sekali (siapa berperan sebagai finance juga belum
-  diputuskan). Detail lengkap ada di README `ekspedisi-apk-backend`.
+  diputuskan). Detail lengkap ada di README `backend-migrasi`.
 - Export laporan (Excel/PDF) riwayat perjalanan.
 - Ikon & splash screen aplikasi (`public/` isinya baru `logo_koperindo.jpeg` buat halaman
   login, belum ada app icon/splash Cordova sungguhan — itu nanti masuk `res/` terpisah,

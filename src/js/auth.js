@@ -5,9 +5,9 @@ import { mockLogin } from './mock.js';
 const STORAGE_KEY = 'dta_session'; // dta = Driver Tracking App
 
 /**
- * Login memakai driver-apk-backend (project Slim 4 terpisah, JWT token auth):
- * POST /login sekali jalan, balikin { token, role, user } langsung -- tidak ada
- * request whoami terpisah, tidak ada cookie sesi sama sekali.
+ * Login memakai backend-migrasi (project Slim 4 terpisah, JWT token auth):
+ * POST /ekspedisi/login sekali jalan, balikin { token, role, user } langsung --
+ * tidak ada request whoami terpisah, tidak ada cookie sesi sama sekali.
  *
  * Saat APP_CONFIG.MOCK_MODE aktif: username apa saja bisa dipakai.
  * Ketik username yang mengandung kata "admin" (mis. "admin") untuk masuk sebagai admin,
@@ -17,7 +17,10 @@ export function login(username, password) {
   const request = APP_CONFIG.MOCK_MODE
     ? mockLogin(username)
     : $.ajax({
-        url: APP_CONFIG.API_BASE_URL + APP_CONFIG.LOGIN_ENDPOINT,
+        // '/ekspedisi' ditambah di sini (bukan dibakukan ke LOGIN_ENDPOINT)
+        // supaya nilai itu tetap murni "nama endpoint", sama pola dgn
+        // api.js (lihat authHeaders() di sana utk alasan lengkap prefix ini).
+        url: APP_CONFIG.API_BASE_URL + '/ekspedisi' + APP_CONFIG.LOGIN_ENDPOINT,
         method: 'POST',
         contentType: 'application/json',
         data: JSON.stringify({ username, password }),
@@ -40,7 +43,7 @@ export function logout() {
   // ...lalu cabut token di server juga (fire-and-forget, tidak perlu ditunggu UI).
   if (!APP_CONFIG.MOCK_MODE && token) {
     $.ajax({
-      url: APP_CONFIG.API_BASE_URL + '/logout',
+      url: APP_CONFIG.API_BASE_URL + '/ekspedisi/logout',
       method: 'POST',
       headers: { Authorization: 'Bearer ' + token },
     });

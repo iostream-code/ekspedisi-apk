@@ -23,6 +23,11 @@ function formatClockTime(d) {
  *   di bawah topbar utama (2026-08-20, dulu tombol back nempel di dalam topbar
  *   hijau bareng judul -- dipisah supaya topbar cuma isi identitas/status,
  *   navigasi "kembali" jadi elemen sendiri) yang manggil fungsi ini saat diklik.
+ *
+ * Tinggi topbar (py-2, 2026-08-22) SENGAJA disamakan ke ukuran inventory-apk
+ * (dulu py-2.5 di sini) -- isian/kontennya sendiri (connection-indicator,
+ * judul+nama, jam, tombol logout) TIDAK berubah, inventory-apk yang ikut
+ * disamakan ke isian ini, lihat shell.js di sana.
  */
 export function renderNavbar($container, title, opts = {}) {
   const { onBack } = opts;
@@ -30,7 +35,7 @@ export function renderNavbar($container, title, opts = {}) {
   const name = session?.user?.name || 'Pengguna';
 
   const $nav = $(`
-    <header class="sticky top-0 z-20 flex items-center justify-between bg-brand-600 px-3 py-2.5 shadow-card">
+    <header class="sticky top-0 z-20 flex items-center justify-between bg-brand-600 px-3 py-2 shadow-card">
       <div class="flex min-w-0 items-center gap-2">
         <div id="connection-indicator" class="connection-indicator" title="Status koneksi"></div>
         <div class="min-w-0">

@@ -41,14 +41,14 @@ const store = {
   // App\Support\SuratJalan di driver-apk-backend, bentuk field sama persis.
   suratJalan: [
     {
-      id: 1, no_surat_jalan: 'SJ-20260819-0001', trip_id: 101, penjualan_id: 'INV_01701-5',
+      id: 1, no_surat_jalan: 'SJ_20260819_0001', trip_id: 101, penjualan_id: 'INV_01701-5',
       driver_id: 1, nama_supir: 'Budi Santoso', tujuan: 'Gudang Sidoarjo -> Toko Makmur Jaya',
       kendaraan: null, plat: null, penerima: null, jumlah_kirim: null, tgl_kirim: null,
       foto_surat_jalan: null, foto_validasi: null, divalidasi_oleh: null, divalidasi_at: null,
       nama_validator: null, items: [], catatan: null, status: 'draft', asal: 'native',
       created_at: new Date().toISOString(),
     },
-    // Contoh baris hasil migrate_legacy_surat_jalan.php (ekspedisi-apk-backend)
+    // Contoh baris hasil migrate_legacy_surat_jalan.php (backend-migrasi)
     // -- driver_id NULL (pengirim lama cuma teks bebas), foto URL ABSOLUT ke
     // host lama (bukan disalin fisik), badge "Data Lama" muncul di list.
     {
@@ -57,7 +57,7 @@ const store = {
       kendaraan: 'Grandmax', plat: 'P 9012 XY', penerima: null, jumlah_kirim: 12, tgl_kirim: '2024-03-11',
       foto_surat_jalan: 'https://indokoper.com/foto_surat_jalan/foto_surat_jalan_1643341150.jpeg',
       foto_validasi: null, divalidasi_oleh: null, divalidasi_at: null, nama_validator: null,
-      items: [], catatan: 'Dimigrasi dari surat_jalan lama (backend-production) -- pengirim (data lama): Yoyo (diambil)',
+      items: [], catatan: '-',
       status: 'terkirim', asal: 'migrasi_legacy', created_at: '2024-03-11T08:00:00.000Z',
     },
   ],
@@ -117,7 +117,7 @@ const DUMMY_PENJUALAN_ITEMS = {
 // Cari penjualan_id ASLI dari input admin yang boleh berupa ID persis
 // ("INV_01701-5"), cuma angkanya ("1701"/"1701-5"), atau format tampilan
 // ("SPK-1701-5") -- meniru persis SuratJalanController::resolvePenjualanId()
-// di ekspedisi-apk-backend (lihat komentar panjang di sana soal REGEXP
+// di backend-migrasi (lihat komentar panjang di sana soal REGEXP
 // anchored, kenapa bukan substring/LIKE biasa).
 function resolvePenjualanId(input) {
   if (DUMMY_PENJUALAN_ITEMS[input]) return input;
@@ -273,7 +273,7 @@ export function mockRequest(rawPath, method, data) {
           asal: 'native',
           created_at: new Date().toISOString(),
         };
-        sj.no_surat_jalan = `SJ-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(sj.id).padStart(4, '0')}`;
+        sj.no_surat_jalan = `SJ_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}_${String(sj.id).padStart(4, '0')}`;
         store.suratJalan.push(sj);
       }
       sj.foto_surat_jalan = null; // mock: tidak simpan blob foto sungguhan, cukup tandai terkirim
@@ -311,7 +311,7 @@ export function mockRequest(rawPath, method, data) {
   // GET /admin/drivers -- tab "Ekspedisi" MURNI monitoring sejak 2026-08-20
   // (bukan lagi tempat plotting supir) -- cuma balikin supir yang SEDANG
   // mengirim: py trip aktif ATAU py SJ yang belum tervalidasi (draft/terkirim),
-  // meniru filter EXISTS/EXISTS di AdminController::drivers() (ekspedisi-apk-backend).
+  // meniru filter EXISTS/EXISTS di AdminController::drivers() (backend-migrasi).
   // `?semua=1` skip filter ini sama sekali -- dipakai dropdown "Pilih supir"
   // di form Buat SJ (adminNewSuratJalan.js), lihat komentar panjang di
   // AdminController::drivers() soal kenapa dua mode ini WAJIB terpisah.
@@ -419,7 +419,7 @@ export function mockRequest(rawPath, method, data) {
     let list = [...store.suratJalan].sort((a, b) => new Date(b.created_at) - new Date(a.created_at) || b.id - a.id);
     if (query.status) list = list.filter((sj) => sj.status === query.status);
     // COALESCE(tgl_kirim, created_at) -- sama persis App\Support\SuratJalan::list()
-    // di ekspedisi-apk-backend, biar filter tahun konsisten antara mock & real API.
+    // di backend-migrasi, biar filter tahun konsisten antara mock & real API.
     if (query.tahun) list = list.filter((sj) => new Date(sj.tgl_kirim || sj.created_at).getFullYear() === Number(query.tahun));
     if (query.q) {
       const q = query.q.toLowerCase();
@@ -514,7 +514,7 @@ export function mockRequest(rawPath, method, data) {
         asal: 'native',
         created_at: new Date().toISOString(),
       };
-      sj.no_surat_jalan = `SJ-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(sj.id).padStart(4, '0')}`;
+      sj.no_surat_jalan = `SJ_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}_${String(sj.id).padStart(4, '0')}`;
       store.suratJalan.push(sj);
       deferredStore.resolve(sj);
     }, 400);

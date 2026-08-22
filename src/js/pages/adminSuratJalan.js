@@ -20,7 +20,7 @@ const STATUS_CLASS = {
   tervalidasi: 'bg-blue-50 text-blue-700',
 };
 
-// Baris hasil migrate_legacy_surat_jalan.php (ekspedisi-apk-backend) simpan
+// Baris hasil migrate_legacy_surat_jalan.php (backend-migrasi) simpan
 // foto sbg URL ABSOLUT ke host lama (https://indokoper.com/foto_surat_jalan/...)
 // -- beda dari baris native yang path-nya RELATIF ke API_BASE_URL app ini
 // sendiri. Jangan digabung dgn API_BASE_URL kalau sudah absolut.
@@ -52,6 +52,38 @@ function clientLabel(sj) {
   return (sj.client_names || []).length ? sj.client_names.map(toTitleCase).join(' | ') : '-';
 }
 
+// trip_photos (ekspedisi_t_trip_photo, dari checkpoint foto supir: berangkat/
+// serah_terima/sj) cuma keisi kalau SJ ini trip-linked -- lihat backend
+// App\Support\SuratJalan::batchTripPhotosByTripId(). SJ manual (trip_id NULL)
+// selalu dapat map kosong di sini, bukan error.
+function tripPhotoMap(sj) {
+  const map = {};
+  (sj.trip_photos || []).forEach((p) => { map[p.type] = p.path; });
+  return map;
+}
+
+/**
+ * Daftar foto yang ditampilkan di modal Detail -- gabungan foto checkpoint
+ * SUPIR (berangkat/serah terima, murni dari trip_photos) dan foto milik SJ
+ * sendiri (foto_surat_jalan/foto_validasi). "Foto SJ" SENGAJA prioritaskan
+ * trip_photos.sj (checkpoint asli supir) drpd foto_surat_jalan kalau dua-duanya
+ * ada -- utk SJ trip-linked isinya identik (upsertFromTripPhoto() nulis ke
+ * keduanya sekaligus), tapi kalau admin PERNAH menimpa foto_surat_jalan lewat
+ * "Lampirkan Foto" manual SESUDAH checkpoint supir, trip_photos.sj tetap versi
+ * ASLI dari lapangan -- itu yang lebih relevan disebut "Foto SJ" (checkpoint),
+ * foto_surat_jalan cuma dipakai fallback utk SJ manual yang tidak py trip sama
+ * sekali.
+ */
+function fotoEntries(sj) {
+  const trip = tripPhotoMap(sj);
+  return [
+    { label: 'Foto Berangkat', path: trip.berangkat, border: 'border border-slate-200' },
+    { label: 'Foto Serah Terima', path: trip.serah_terima, border: 'border border-slate-200' },
+    { label: 'Foto SJ', path: trip.sj || sj.foto_surat_jalan, border: 'border border-slate-200' },
+    { label: 'Foto Validasi', path: sj.foto_validasi, border: 'border-2 border-blue-400' },
+  ].filter((f) => f.path);
+}
+
 /**
  * Isi modal "Detail Surat Jalan" -- info yang DULUNYA tersebar di beberapa
  * kolom tabel (Supir, Kirim, Dibuat, Foto, badge "Data Lama"/info validasi)
@@ -65,7 +97,7 @@ function detailBodyHtml(sj) {
   const spkLabel = buildSpkLabel(sj);
   const tglDibuat = formatTanggal(sj.created_at);
   const tglKirim = formatTanggal(sj.tgl_kirim);
-  const hasFoto = sj.foto_surat_jalan || sj.foto_validasi;
+  const fotos = fotoEntries(sj);
 
   return `
     <dl class="space-y-4 text-sm">
@@ -73,7 +105,7 @@ function detailBodyHtml(sj) {
         <dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Ringkasan</dt>
         <dd class="mt-1 text-slate-700">
           <p class="font-medium text-ink">${sj.no_surat_jalan || '(belum di-generate)'}
-            ${sj.asal === 'migrasi_legacy' ? '<span class="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500" title="Dimigrasi dari surat_jalan lama (backend-production)">Data Lama</span>' : ''}
+            ${sj.asal === 'migrasi_legacy' ? '<span class="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500" title="-">Data Lama</span>' : ''}
           </p>
           <p class="mt-0.5 text-xs text-slate-400">${sj.trip_id ? 'Dari trip #' + sj.trip_id : 'Dibuat manual'}${spkLabel ? ' &middot; SPK ' + spkLabel : ''}</p>
         </dd>
@@ -82,13 +114,18 @@ function detailBodyHtml(sj) {
         <dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Tujuan</dt>
         <dd class="mt-1 text-slate-700">${sj.tujuan || '-'}</dd>
       </div>
-      <div>
-        <dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Supir &amp; Kendaraan</dt>
-        <dd class="mt-1 text-slate-700">
-          <p>${sj.nama_supir || 'Belum ada supir'}</p>
-          <p class="text-xs text-slate-400">${sj.kendaraan || '-'}${sj.plat ? ' (' + sj.plat + ')' : ''}</p>
-          ${sj.penerima ? `<p class="mt-1 text-xs text-slate-400">Penerima: ${sj.penerima}</p>` : ''}
-        </dd>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Supir &amp; Kendaraan</dt>
+          <dd class="mt-1 text-slate-700">
+            <p>${sj.nama_supir || 'Belum ada supir'}</p>
+            <p class="text-xs text-slate-400">${sj.kendaraan || '-'}${sj.plat ? ' (' + sj.plat + ')' : ''}</p>
+          </dd>
+        </div>
+        <div>
+          <dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Penerima</dt>
+          <dd class="mt-1 text-slate-700">${sj.penerima || '-'}</dd>
+        </div>
       </div>
       <div>
         <dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Rincian Kirim</dt>
@@ -113,10 +150,14 @@ function detailBodyHtml(sj) {
       </div>
       <div>
         <dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Foto</dt>
-        <dd class="mt-1 flex gap-2">
-          ${sj.foto_surat_jalan ? `<img src="${fotoUrl(sj.foto_surat_jalan)}" data-lightbox class="h-16 w-16 cursor-zoom-in rounded-lg border border-slate-200 object-cover" title="Foto lapangan" />` : ''}
-          ${sj.foto_validasi ? `<img src="${fotoUrl(sj.foto_validasi)}" data-lightbox class="h-16 w-16 cursor-zoom-in rounded-lg border-2 border-brand-400 object-cover" title="Foto validasi" />` : ''}
-          ${hasFoto ? '' : '<p class="text-xs text-slate-400">Belum ada foto.</p>'}
+        <dd class="mt-1 flex flex-wrap gap-3">
+          ${fotos.map((f) => `
+            <div class="flex flex-col items-center gap-1">
+              <img src="${fotoUrl(f.path)}" data-lightbox class="h-16 w-16 cursor-zoom-in rounded-lg ${f.border} object-cover" title="${f.label}" alt="${f.label}" />
+              <span class="text-[10px] text-slate-400">${f.label}</span>
+            </div>
+          `).join('')}
+          ${fotos.length ? '' : '<p class="text-xs text-slate-400">Belum ada foto.</p>'}
         </dd>
       </div>
     </dl>
@@ -143,12 +184,14 @@ function detailBodyHtml(sj) {
  * halaman = hasil salah/tidak lengkap).
  *
  * Kolom tabel (2026-08-20, dirampingkan; kolom Tujuan ikut dicopot susulan
- * hari yang sama) -- No SJ, Klien, Dikirim, Status, Aksi. Info sekunder
- * (Tujuan, Supir/kendaraan, Penerima, breakdown Kirim, tanggal Dibuat,
- * badge "Data Lama"/info validasi, Foto) dipindah ke modal "Detail Surat
- * Jalan" (lihat detailBodyHtml() & components/modal.js) -- dipicu tombol
- * "Detail" di kolom Aksi, supaya tabel tidak melebar/menurun cuma gara-gara
- * info yang tidak selalu perlu dilihat sekilas.
+ * hari yang sama; kolom Keterangan ditambah lagi 2026-08-21 di samping Status,
+ * isinya `sj.catatan` -- field yang sama dipakai form "Buat SJ", lihat
+ * adminNewSuratJalan.js) -- No SJ, Klien, Dikirim, Status, Keterangan, Aksi.
+ * Info sekunder lain (Tujuan, Supir/kendaraan, Penerima, breakdown Kirim,
+ * tanggal Dibuat, badge "Data Lama"/info validasi, Foto) tetap di modal
+ * "Detail Surat Jalan" (lihat detailBodyHtml() & components/modal.js) --
+ * dipicu tombol "Detail" di kolom Aksi, supaya tabel tidak melebar/menurun
+ * cuma gara-gara info yang tidak selalu perlu dilihat sekilas.
  */
 export async function renderAdminSuratJalan($container) {
   renderNavbar($container, 'Ekspedisi');
@@ -254,6 +297,7 @@ export async function renderAdminSuratJalan($container) {
             <th class="whitespace-nowrap px-3 py-2 text-center">Klien</th>
             <th class="whitespace-nowrap px-3 py-2 text-center">Dikirim</th>
             <th class="whitespace-nowrap px-3 py-2 text-center">Status</th>
+            <th class="whitespace-nowrap px-3 py-2 text-center">Keterangan</th>
             <th class="whitespace-nowrap px-3 py-2 text-center">Aksi</th>
           </tr>
         </thead>
@@ -273,6 +317,7 @@ export async function renderAdminSuratJalan($container) {
           <td class="whitespace-nowrap px-3 py-2.5 align-top">
             <span class="rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CLASS[sj.status] || 'bg-slate-100 text-slate-600'}" data-status-badge>${STATUS_LABEL[sj.status] || sj.status}</span>
           </td>
+          <td class="max-w-[180px] truncate px-3 py-2.5 align-top text-slate-500">${sj.catatan || '-'}</td>
           <td class="whitespace-nowrap px-3 py-2.5 align-top">
             <div class="flex gap-1.5" data-aksi></div>
           </td>

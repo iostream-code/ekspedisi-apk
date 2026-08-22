@@ -8,6 +8,13 @@ function authHeaders() {
   return token ? { Authorization: 'Bearer ' + token } : {};
 }
 
+// [BARU 2026-08-22] Prefix '/ekspedisi' ditambah SEKALI di sini (bukan per
+// pemanggil) -- backend-migrasi sekarang mewajibkan prefix nama modul di
+// semua path (dulu modul Ekspedisi flat tanpa prefix, diubah setelah
+// ketahuan bentrok dgn login inventory-apk yang salah kena kesini, lihat
+// backend-migrasi/src/Ekspedisi/routes.php). `path` yang dikirim pemanggil
+// (mis. '/driver/status') TETAP relatif ke modul ini, tidak perlu diubah.
+
 /**
  * Wrapper request JSON standar.
  * @param {string} path - path relatif, contoh: '/driver/status'
@@ -18,7 +25,7 @@ function request(path, method = 'GET', data = null) {
   if (APP_CONFIG.MOCK_MODE) return mockRequest(path, method, data || {});
 
   return $.ajax({
-    url: APP_CONFIG.API_BASE_URL + path,
+    url: APP_CONFIG.API_BASE_URL + '/ekspedisi' + path,
     method,
     data: data ? JSON.stringify(data) : undefined,
     contentType: 'application/json',
@@ -55,7 +62,7 @@ function uploadFile(path, fileBlob, fieldName, extraFields = {}) {
   Object.entries(extraFields).forEach(([key, value]) => formData.append(key, value));
 
   return $.ajax({
-    url: APP_CONFIG.API_BASE_URL + path,
+    url: APP_CONFIG.API_BASE_URL + '/ekspedisi' + path,
     method: 'POST',
     data: formData,
     processData: false,
@@ -88,7 +95,7 @@ function postMultipart(path, fields) {
   if (APP_CONFIG.MOCK_MODE) return mockRequest(path, 'POST', formData);
 
   return $.ajax({
-    url: APP_CONFIG.API_BASE_URL + path,
+    url: APP_CONFIG.API_BASE_URL + '/ekspedisi' + path,
     method: 'POST',
     data: formData,
     processData: false,

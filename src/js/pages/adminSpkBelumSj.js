@@ -13,7 +13,7 @@ const SJ_STATUS_LABEL = { draft: 'Draft', terkirim: 'Terkirim', tervalidasi: 'Te
 
 /**
  * 1 baris SJ -> 1 baris tabel PER SPK yang disentuh (biasanya 1, tapi bisa
- * lebih -- lihat App\Support\SuratJalan::items() di ekspedisi-apk-backend).
+ * lebih -- lihat App\Support\SuratJalan::items() di backend-migrasi).
  * SJ tanpa SPK sama sekali (freeform) tidak ikut, krn tabel ini SPK-sentris.
  */
 function flattenSjBySpk(sjList) {
@@ -36,7 +36,7 @@ function flattenSjBySpk(sjList) {
  * - Aktif (default): SPK sudah disetujui utk dikirim tapi BELUM ADA SJ SAMA
  *   SEKALI (beda dari "SPK Siap Kirim" di tab Ekspedisi, yang kriterianya
  *   "belum diplot ke supir" -- 2 hal independen, lihat
- *   App\Support\SpkReadyKirim::listBelumSj() di ekspedisi-apk-backend). Aksi
+ *   App\Support\SpkReadyKirim::listBelumSj() di backend-migrasi). Aksi
  *   per baris cuma "Surat Jalan" -- plotting ke supir ada di tab Ekspedisi.
  * - Riwayat: SPK yang SUDAH ada SJ-nya -- diturunkan dari GET /admin/sj,
  *   tidak ada endpoint baru khusus krn datanya sudah tersedia dari situ. 1

@@ -17,17 +17,23 @@
 
 @layer components {
 
-  /* Tombol utama - dipakai untuk aksi kritikal seperti ambil foto / kirim */
+  /* Tombol utama - dipakai untuk aksi kritikal seperti ambil foto / kirim.
+     Bentuk (rounded-md, py-3, tanpa shadow, hover:brightness-95) disamakan
+     dgn .btn-action milik inventory-apk (2026-08-22, lihat main.css/menu
+     Partner di sana) -- dulu rounded-xl+py-3.5+shadow-card, lebih besar dan
+     "membulat" drpd konvensi inventory-apk. font-display (bukan font-heading
+     inventory-apk) & active:scale-[0.98] TETAP dipertahankan -- itu identitas
+     font/interaksi ekspedisi-apk sendiri, bukan bagian dari "bentuk button". */
   .btn-route {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-route px-5 py-3.5 font-display font-semibold text-white shadow-card active:scale-[0.98] transition disabled:opacity-40 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-2 rounded-md bg-route px-5 py-3 font-display font-bold text-white active:scale-[0.98] hover:brightness-95 transition disabled:opacity-40 disabled:pointer-events-none;
   }
 
   .btn-brand {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-3.5 font-display font-semibold text-white shadow-card active:scale-[0.98] transition disabled:opacity-40 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-2 rounded-md bg-brand-600 px-5 py-3 font-display font-bold text-white active:scale-[0.98] hover:brightness-95 transition disabled:opacity-40 disabled:pointer-events-none;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3.5 font-display font-semibold text-ink active:scale-[0.98] transition;
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-5 py-3 font-display font-bold text-ink active:scale-[0.98] hover:bg-slate-50 transition;
   }
 
   /* Tombol kolom "Aksi" di tabel (Detail/Validasi/Kirim/Edit, dst) -- lebar
@@ -40,7 +46,7 @@
      bukan ubah default di sini.
    */
   .btn-table-action {
-    @apply inline-flex w-28 shrink-0 items-center justify-center rounded-lg bg-slate-700 px-2 py-1.5 text-center text-xs font-semibold text-white transition hover:bg-slate-800;
+    @apply inline-flex w-28 shrink-0 items-center justify-center rounded-md bg-slate-700 px-2 py-1.5 text-center text-xs font-semibold text-white transition hover:bg-slate-800;
   }
 
   .card {

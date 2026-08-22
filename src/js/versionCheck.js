@@ -12,7 +12,7 @@ let timer = null;
  * Cek versi app -- pola yang sama dipakai app lain di workspace ini
  * (absensi-apk, finance-apk, admin-finance-apk): tiap `CHECK_INTERVAL_MS`,
  * kirim `CURRENT_APP_VERSION_CODE` (dari app-version.js, auto-generate
- * `bump-version.cjs`) ke `POST /config/check-version`. Kalau backend bilang
+ * `bump-version.cjs`) ke `POST /ekspedisi/config/check-version`. Kalau backend bilang
  * `is_valid: false` (versi di device di bawah `config_value_minimal` yang
  * di-set admin di tabel `config`, config_id='VERSION_EKSPEDISI_PUSAT') --
  * tampilkan pesannya (`config.config_keterangan`) lalu paksa logout, SAMA
@@ -24,7 +24,7 @@ let timer = null;
  */
 function checkOnce() {
   $.ajax({
-    url: APP_CONFIG.API_BASE_URL + '/config/check-version',
+    url: APP_CONFIG.API_BASE_URL + '/ekspedisi/config/check-version',
     method: 'POST',
     contentType: 'application/json',
     data: JSON.stringify({ current_version_code: CURRENT_APP_VERSION_CODE }),

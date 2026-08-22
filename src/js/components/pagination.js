@@ -8,7 +8,7 @@ const CHEVRON_RIGHT = `<svg width="18" height="18" viewBox="0 0 24 24" fill="non
  * sekarang/total" (mis. "1/20"), dipasang di bawah <table> pada halaman list
  * admin (tab SPK & SJ), pasangan dari components/tableToolbar.js. Server yang
  * hitung total/page/per_page (lihat SuratJalan::list()/SpkReadyKirim::
- * listBelumSj() di ekspedisi-apk-backend), komponen ini murni tampilan +
+ * listBelumSj() di backend-migrasi), komponen ini murni tampilan +
  * tombol nav. Sebelumnya (2026-08-20) teks lengkap "Sebelumnya"/"Selanjutnya"
  * + "X-Y dari Z" -- dirampingkan jadi cuma panah + pecahan halaman biar lebih
  * ringkas, "X-Y dari Z" dianggap tidak perlu (jumlah total tetap kelihatan

@@ -16,7 +16,7 @@ const PLUS_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" s
  * Tab "Ekspedisi" -- MURNI monitoring (2026-08-20, keputusan eksplisit:
  * assignment supir->SPK/pengiriman melekat ke SJ, bukan lagi langkah
  * "plotting" terpisah di sini -- lihat komentar SuratJalanController::store()
- * & AdminController::drivers() di ekspedisi-apk-backend). Tombol "Plot SPK ke
+ * & AdminController::drivers() di backend-migrasi). Tombol "Plot SPK ke
  * Supir" & halamannya (adminSpkKirim.js) DIHAPUS. `GET /admin/drivers`
  * sekarang cuma balikin supir yang SEDANG mengirim (py trip aktif ATAU SJ
  * belum tervalidasi) -- peta & list di sini otomatis ikut sempit tanpa perlu

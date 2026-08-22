@@ -88,7 +88,7 @@ function openForm(eks, onSaved) {
 
 /**
  * Layar kelola perusahaan ekspedisi eksternal (`ekspedisi_m_ekspedisi`,
- * MILIK app ini sendiri -- 2026-08-20, lihat README `ekspedisi-apk-backend`
+ * MILIK app ini sendiri -- 2026-08-20, lihat README `backend-migrasi`
  * bagian "Master perusahaan ekspedisi eksternal" utk alasan kenapa
  * independen dari `m_expedisi` backend-production). Drill-down dari tab
  * Ekspedisi ("Kelola Ekspedisi", di samping "+ Tambah Supir").
