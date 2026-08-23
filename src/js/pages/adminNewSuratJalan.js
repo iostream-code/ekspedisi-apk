@@ -4,7 +4,6 @@ import { setButtonLoading } from '../components/loader.js';
 import { api } from '../api.js';
 import { navigate } from '../router.js';
 import { takePhoto } from '../camera.js';
-import { consumePrefillPenjualanId } from '../prefill.js';
 import { formatSpkNo } from '../format.js';
 
 /**
@@ -14,14 +13,26 @@ import { formatSpkNo } from '../format.js';
  * bawa dokumen fisiknya; kalau supirnya memang belum ada, buat SJ-nya
  * belakangan juga setelah ada supir).
  *
- * 1 SJ boleh mengangkut lini produk dari LEBIH DARI 1 SPK sekaligus
- * (2026-08-20) -- admin bisa "Tambah" beberapa nomor SPK berturut-turut,
- * tiap SPK jadi 1 grup dengan breakdown produknya sendiri.
+ * **Nomor SJ WAJIB diinput manual** (2026-08-23, dulu auto-generate) --
+ * admin cukup ketik angkanya sesuai nomor kertas SJ fisik yang sudah
+ * dicetak (mis. "1234"), backend menurunkan `no_surat_jalan` ('SJ_1234')
+ * dari situ (lihat App\Ekspedisi\Support\SuratJalan::create() di
+ * backend-migrasi). Server juga yang tolak kalau nomornya sudah dipakai.
+ *
+ * 1 SJ boleh mengangkut lini produk dari LEBIH DARI 1 SPK sekaligus, TAPI
+ * SEMUA SPK yang ditambahkan harus dari klien/perusahaan yang SAMA
+ * (2026-08-23, aturan baru -- dicek dari `client_id` tiap SPK, dikembalikan
+ * `GET /admin/sj/spk/:id/items` sejak endpoint itu berubah bentuk jadi
+ * `{ client_id, client_nama, lines }`) -- admin bisa "Tambah" beberapa
+ * nomor SPK berturut-turut, tiap SPK jadi 1 grup dengan breakdown produknya
+ * sendiri, tapi SPK dari klien lain ditolak (lihat addSpkGroup()). Divalidasi
+ * ULANG di server saat submit (SuratJalanController::store()), ini cuma
+ * feedback cepat sebelum submit.
  *
  * Form dibagi 2 card terpisah (2026-08-20): card "SPK" (cek/tambah SPK +
  * breakdown per lini produk) lebih dulu, baru card "Detail Surat Jalan"
- * (tujuan/supir/kendaraan/dst + tombol submit) -- 1 elemen <form> yang sama
- * membungkus keduanya, cuma dipisah visual jadi 2 card.
+ * (nomor SJ/tujuan/supir/kendaraan/dst + tombol submit) -- 1 elemen <form>
+ * yang sama membungkus keduanya, cuma dipisah visual jadi 2 card.
  */
 export async function renderAdminNewSuratJalan($container) {
   renderNavbar($container, 'Buat Surat Jalan', { onBack: () => navigate('/admin/sj') });
@@ -65,6 +76,13 @@ export async function renderAdminNewSuratJalan($container) {
 
       <div class="card space-y-4 p-4">
         <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Detail Surat Jalan</p>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-600">Nomor SJ</label>
+          <input id="nomor_urut" type="number" min="1" required inputmode="numeric" placeholder="Contoh: 1234"
+            class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
+          <p class="mt-1.5 text-xs text-slate-400">Tulis angkanya saja sesuai nomor kertas SJ fisik yang sudah
+            dicetak -- jadi "SJ_1234" otomatis. Server menolak kalau nomor ini sudah pernah dipakai.</p>
+        </div>
         <div>
           <label class="mb-1 block text-sm font-medium text-slate-600">Tujuan</label>
           <input id="tujuan" type="text" placeholder="Contoh: Toko Makmur Jaya, Sidoarjo"
@@ -124,7 +142,7 @@ export async function renderAdminNewSuratJalan($container) {
     </form>
   `);
 
-  let spkGroups = []; // [{ penjualanId, lines: [{penjualan_detail_performa_id, penjualan_jenis, penjualan_qty, sisa}] }, ...]
+  let spkGroups = []; // [{ penjualanId, clientId, clientNama, lines: [{penjualan_detail_performa_id, penjualan_jenis, penjualan_qty, sisa, client_id, client_nama}] }, ...]
 
   function renderSpkGroups() {
     const $wrap = $('#spk-groups').empty();
@@ -140,7 +158,10 @@ export async function renderAdminNewSuratJalan($container) {
       const $group = $(`
         <div class="rounded-xl border border-slate-200 p-3">
           <div class="flex items-center justify-between">
-            <p class="text-sm font-semibold text-ink">${formatSpkNo(group.penjualanId)}</p>
+            <div>
+              <p class="text-sm font-semibold text-ink">${formatSpkNo(group.penjualanId)}</p>
+              <p class="text-xs text-slate-400">${group.clientNama || '-'}</p>
+            </div>
             <button type="button" class="btn-hapus-spk text-xs font-medium text-status-alert hover:underline">Hapus</button>
           </div>
           <div class="mt-2 space-y-2" data-lines></div>
@@ -180,9 +201,9 @@ export async function renderAdminNewSuratJalan($container) {
 
     const $btn = $('#btn-tambah-spk');
     setButtonLoading($btn, true, '...');
-    let lines;
+    let result;
     try {
-      lines = await api.get(`/admin/sj/spk/${encodeURIComponent(penjualanId)}/items`);
+      result = await api.get(`/admin/sj/spk/${encodeURIComponent(penjualanId)}/items`);
     } catch (xhr) {
       setButtonLoading($btn, false);
       $err.text(xhr?.responseJSON?.message || 'SPK tidak ditemukan.').removeClass('hidden');
@@ -190,24 +211,28 @@ export async function renderAdminNewSuratJalan($container) {
     }
     setButtonLoading($btn, false);
 
+    const { client_id: clientId, client_nama: clientNama, lines } = result;
+
     if (!lines.length) {
       $err.text('SPK ini tidak punya lini produk apa pun.').removeClass('hidden');
       return;
     }
 
-    spkGroups.push({ penjualanId, lines });
+    // Aturan baru (2026-08-23): 1 SJ boleh lintas SPK, TAPI cuma kalau semua
+    // dari klien/perusahaan yang SAMA -- dicek di FE dulu (feedback cepat),
+    // divalidasi ULANG di server saat submit (lihat docblock file ini).
+    const existingClient = spkGroups.find((g) => g.clientId != null);
+    if (existingClient && clientId != null && clientId !== existingClient.clientId) {
+      $err.text(`SPK ini dari klien "${clientNama}", beda dengan SPK yang sudah ditambahkan ("${existingClient.clientNama}") -- 1 SJ hanya boleh mengangkut SPK dari klien yang sama.`).removeClass('hidden');
+      return;
+    }
+
+    spkGroups.push({ penjualanId, clientId, clientNama, lines });
     $('#penjualan_id').val('');
     renderSpkGroups();
   }
 
   $main.find('#btn-tambah-spk').on('click', () => addSpkGroup($('#penjualan_id').val().trim()));
-
-  // Dititipkan dari tab "SPK" (adminSpkBelumSj.js, tombol "Surat Jalan") --
-  // langsung ditambahkan sebagai grup pertama, admin tidak perlu ngetik ulang.
-  const prefillId = consumePrefillPenjualanId();
-  if (prefillId) {
-    addSpkGroup(prefillId);
-  }
 
   let fotoBlob = null;
   $main.find('#btn-foto').on('click', async function () {
@@ -229,6 +254,12 @@ export async function renderAdminNewSuratJalan($container) {
     const $err = $('#form-error');
     $err.addClass('hidden');
 
+    const nomorUrut = Number($('#nomor_urut').val() || 0);
+    if (!nomorUrut || nomorUrut <= 0) {
+      $err.text('Nomor SJ wajib diisi (angka sesuai nomor kertas SJ fisik).').removeClass('hidden');
+      return;
+    }
+
     const items = [];
     $main.find('.item-jumlah-kirim').each(function () {
       const val = Number($(this).val() || 0);
@@ -243,6 +274,7 @@ export async function renderAdminNewSuratJalan($container) {
     setButtonLoading($btn, true, 'Menyimpan...');
 
     api.post('/admin/sj', {
+      nomor_urut: nomorUrut,
       items: items.length ? items : undefined,
       tujuan: $('#tujuan').val().trim(),
       driver_id: $('#driver_id').val(),

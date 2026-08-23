@@ -9,6 +9,15 @@ Aplikasi mobile (Cordova) untuk tracking supir pengiriman: satu app dengan dua r
 foto per perjalanan) dan **admin/dispatcher** (peta live semua supir + riwayat perjalanan
 per supir).
 
+**[DISEDERHANAKAN 2026-08-23]** Sisi admin sekarang cuma **2 tab**: **SJ** (halaman awal
+setelah login) & **Ekspedisi** (monitoring) — tab "SPK" dihapus. Nomor SJ (`no_surat_jalan`)
+**diinput manual admin**, bukan lagi auto-generate, supaya cocok nomor kertas SJ fisik yang
+sudah dicetak; nomor yang terlewat ditandai baris merah di tabel. Detail lengkap ada di
+bagian "**Penyederhanaan 2026-08-23: 2 tab, nomor SJ manual**" di bawah — bagian-bagian lain
+di README ini yang masih menyebut tab "SPK"/`adminSpkBelumSj.js` adalah **riwayat/histori**
+desain sebelum perubahan ini, dipertahankan apa adanya sebagai catatan, BUKAN dokumentasi
+perilaku yang masih berlaku.
+
 **Status: prototype/demo.** `platforms/` belum pernah di-generate (`cordova platform add`
 belum dijalankan), dan secara default app jalan dalam **mode mock** (`MOCK_MODE: true` di
 `src/js/config.js`) — semua data dummy, disimpan di memori, hilang tiap refresh. Backend
@@ -203,10 +212,10 @@ benar-benar dipanggil `api.js`/pages), dan cocok persis dengan
 | POST | `/admin/drivers/:id/trip` | `adminNewTrip.js` ("Perjalanan Baru", jalur MANUAL independen SPK/SJ) | `{ destination, no_surat_jalan?, penjualan_id? }` | `{ ...trip baru }` |
 | POST | `/admin/trips/:id/complete` | `adminDriverDetail.js` (tombol "Tandai Selesai", cuma tampil utk trip aktif supir eksternal) | — | `{ ...trip, status: 'completed' }`, 422 kalau supirnya internal |
 | GET | `/admin/surat-jalan/:no` | `adminNewTrip.js` (tombol "Cek") | — | `{ no_surat_jalan, tanggal, kendaraan, plat, pengirim, valid_cs, client_nama, client_alamat }`, 404 kalau tidak ketemu |
-| GET | `/admin/spk-belum-sj` | `adminSpkBelumSj.js` (tab "SPK", halaman awal admin) | query opsional: `q`, `page`, `per_page` | SPK ready-kirim **belum ada SJ sama sekali** → `{ data: [...], total, page, per_page }`. (`GET /admin/spk-ready-kirim`, "belum diplot ke supir", DIHAPUS 2026-08-20 bareng halaman "Plot SPK ke Supir" — lihat bagian "Tab Ekspedisi jadi murni monitoring" di bawah) |
-| GET | `/admin/sj/spk/:penjualan_id/items` | `adminNewSuratJalan.js` (tombol "+ Tambah" di field Nomor SPK, bisa dipanggil berkali-kali utk beberapa SPK) | — | `[{ penjualan_detail_performa_id, penjualan_jenis, penjualan_qty, terkirim, sisa }]`, 404 kalau SPK tidak ketemu |
-| GET | `/admin/sj` | `adminSuratJalan.js` | query opsional: `status`, `penjualan_id`, `q`, `page`, `per_page` | `{ data: [{ id, no_surat_jalan, trip_id, penjualan_id, driver_id, nama_supir, tujuan, kendaraan, plat, penerima, jumlah_kirim, tgl_kirim, asal, items: [{ penjualan_detail_performa_id, penjualan_id, penjualan_jenis, jumlah_kirim }], client_names: [...], foto_surat_jalan, foto_validasi, divalidasi_oleh, divalidasi_at, nama_validator, catatan, status, created_at }], total, page, per_page }` — `asal` = `native`/`migrasi_legacy` (badge "Data Lama", cuma di modal Detail sejak tabel dirampingkan, lihat di bawah). `client_names` (2026-08-20) = nama klien per SPK yang disentuh, dipakai kolom "Klien" |
-| POST | `/admin/sj` | `adminNewSuratJalan.js` | `{ tujuan, driver_id (WAJIB), kendaraan?, plat?, penerima?, jumlah_kirim?, tgl_kirim?, catatan?, items?: [{ penjualan_detail_performa_id, jumlah_kirim }] }` | 201, `{ ...surat jalan baru, no_surat_jalan auto-generated }`, 422 kalau `driver_id` kosong atau ada item melebihi sisa qty. `items` boleh lintas beberapa SPK sekaligus, tidak ada param `penjualan_id` lagi. (2026-08-20) Kalau `driver_id`-nya supir **internal**, backend OTOMATIS bikin `ekspedisi_t_trip` & menautkannya (gantiin langkah "Plot SPK ke Supir" yang dihapus) — supir tetap bisa checkpoint foto sendiri lewat app-nya; supir eksternal sengaja tidak dibikinkan trip |
+| GET | `/admin/spk-belum-sj` | ~~`adminSpkBelumSj.js`~~ | — | **[DIHAPUS 2026-08-23]** bareng tab "SPK" — lihat bagian "Penyederhanaan 2026-08-23" di bawah. Baris ini dipertahankan sbg riwayat, endpoint & filenya sudah tidak ada. |
+| GET | `/admin/sj/spk/:penjualan_id/items` | `adminNewSuratJalan.js` (tombol "+ Tambah" di field Nomor SPK, bisa dipanggil berkali-kali utk beberapa SPK) | — | **[2026-08-23, dulu array polos]** `{ client_id, client_nama, lines: [{ penjualan_detail_performa_id, penjualan_jenis, penjualan_qty, client_id, client_nama, terkirim, sisa }] }`, 404 kalau SPK tidak ketemu. `client_id`/`client_nama` dipakai FE cek aturan "1 SJ cuma boleh lintas SPK dari klien yang sama" |
+| GET | `/admin/sj` | `adminSuratJalan.js` | query opsional: `status`, `belum_tervalidasi` (2026-08-23, `status != 'tervalidasi'` — dipakai mode aktif; diabaikan kalau `status` juga diisi), `penjualan_id`, `q`, `tahun`, `page`, `per_page` | `{ data: [{ id, no_surat_jalan, nomor_urut, trip_id, penjualan_id, driver_id, nama_supir, tujuan, kendaraan, plat, penerima, jumlah_kirim, tgl_kirim, asal, items: [{ penjualan_detail_performa_id, penjualan_id, penjualan_jenis, jumlah_kirim }], client_names: [...], foto_surat_jalan, foto_validasi, divalidasi_oleh, divalidasi_at, nama_validator, catatan, status, missing, created_at }], total, page, per_page }` — `asal` = `native`/`migrasi_legacy` (badge "Data Lama", cuma di modal Detail sejak tabel dirampingkan, lihat di bawah). `client_names` (2026-08-20) = nama klien per SPK yang disentuh, dipakai kolom "Klien". **`nomor_urut`/`missing`** (2026-08-23) — nomor SJ sekarang diinput manual (lihat POST di bawah); kalau `q` kosong, baris VIRTUAL disisipkan utk tiap nomor yang hilang dalam rentang tahun difilter (`missing: true`, tidak ada di DB, field lain null) — lihat bagian "Penyederhanaan 2026-08-23" |
+| POST | `/admin/sj` | `adminNewSuratJalan.js` | `{ nomor_urut (WAJIB), tujuan, driver_id (WAJIB), kendaraan?, plat?, penerima?, jumlah_kirim?, tgl_kirim?, catatan?, items?: [{ penjualan_detail_performa_id, jumlah_kirim }] }` | 201, `{ ...surat jalan baru }`, 422 kalau `driver_id`/`nomor_urut` kosong, `nomor_urut` sudah dipakai, ada item melebihi sisa qty, atau item yang disentuh dari **lebih dari 1 klien/perusahaan berbeda** (2026-08-23, aturan baru). `items` boleh lintas beberapa SPK sekaligus (TAPI cuma kalau semua dari klien yang sama), tidak ada param `penjualan_id` lagi. **`nomor_urut`** (2026-08-23, WAJIB, dulu `no_surat_jalan` auto-generate dari id/tanggal) — angka polos sesuai nomor kertas SJ fisik yang sudah dicetak (mis. `1234`), backend menurunkan `no_surat_jalan` ('SJ_1234') darinya. (2026-08-20) Kalau `driver_id`-nya supir **internal**, backend OTOMATIS bikin `ekspedisi_t_trip` & menautkannya (gantiin langkah "Plot SPK ke Supir" yang dihapus) — supir tetap bisa checkpoint foto sendiri lewat app-nya; supir eksternal sengaja tidak dibikinkan trip |
 | GET | `/admin/sj/:id` | (belum dipanggil dari UI) | — | `{ ...detail surat jalan }`, 404 kalau tidak ketemu |
 | PUT | `/admin/sj/:id` | (belum ada UI edit) | field opsional: `tujuan, kendaraan, plat, penerima, jumlah_kirim, tgl_kirim, catatan` | `{ ...surat jalan terupdate }` |
 | POST | `/admin/sj/:id/photo` | `adminNewSuratJalan.js` (kalau admin ambil foto sebelum submit) | multipart: `photo` | `{ ...surat jalan, status: 'terkirim' }` |
@@ -546,7 +555,7 @@ spesifik, tidak pernah nampilin gabungan semua tahun sekaligus).
 | `#/login` | `login.js` | publik |
 | `#/driver` | `driverDashboard.js` | `driver` |
 | `#/driver/trip/:tripId` | `driverWorkflow.js` | `driver` |
-| `#/admin` | `adminSpkBelumSj.js` | `admin` — **tab "SPK", halaman awal admin** setelah login (juga home role-mismatch redirect, lihat di bawah) |
+| `#/admin` | `adminSuratJalan.js` | `admin` — **tab "SJ", halaman awal admin** setelah login (2026-08-23, dulu `adminSpkBelumSj.js`/tab "SPK" — dihapus, lihat "Penyederhanaan 2026-08-23") (juga home role-mismatch redirect, lihat di bawah) |
 | `#/admin/ekspedisi` | `adminDashboard.js` | `admin` — tab "Ekspedisi" |
 | `#/admin/ekspedisi/kelola` | `adminEkspedisiList.js` | `admin` — kelola master perusahaan ekspedisi eksternal |
 | `#/admin/sj` | `adminSuratJalan.js` | `admin` — tab "SJ" |
@@ -555,13 +564,74 @@ spesifik, tidak pernah nampilin gabungan semua tahun sekaligus).
 | `#/admin/driver/:driverId/trip/new` | `adminNewTrip.js` | `admin` |
 | `#/admin/sj/new` | `adminNewSuratJalan.js` | `admin` — didaftarkan sebelum `/admin/sj` di `main.js`, mengikuti pola `driver/new` |
 
-**Tab bar SPK/SJ/Ekspedisi** (`components/adminTabs.js`) dipasang cuma di 3 halaman ROOT
-(`adminSpkBelumSj.js`/`adminSuratJalan.js`/`adminDashboard.js`) — tab tidak aktif abu-abu
-(`bg-slate-100 text-slate-500`), tab aktif hijau (`bg-brand-600 text-white`). Navbar (`navbar.js`)
-di ketiganya judulnya **konstan "Ekspedisi"** (identitas app, bukan judul per-halaman) — tanpa
-tombol back, karena berpindah tab bukan "kembali". Halaman drill-down (detail supir, tambah
-supir, perjalanan baru, buat SJ, plot SPK) TIDAK pakai tab bar — itu tetap navbar biasa dengan
-judul spesifik + tombol back ke tab root asalnya.
+**Tab bar SJ/Ekspedisi** (`components/adminTabs.js`, 2026-08-23 — dulu 3 tab SPK/SJ/Ekspedisi,
+lihat "Penyederhanaan 2026-08-23" di bawah) dipasang cuma di 2 halaman ROOT
+(`adminSuratJalan.js`/`adminDashboard.js`) — tab tidak aktif abu-abu (`bg-slate-100 text-slate-500`),
+tab aktif hijau (`bg-brand-600 text-white`). Navbar (`navbar.js`) di keduanya judulnya **konstan
+"Ekspedisi"** (identitas app, bukan judul per-halaman) — tanpa tombol back, karena berpindah tab
+bukan "kembali". Halaman drill-down (detail supir, tambah supir, perjalanan baru, buat SJ) TIDAK
+pakai tab bar — itu tetap navbar biasa dengan judul spesifik + tombol back ke tab root asalnya.
+
+## Penyederhanaan 2026-08-23: 2 tab, nomor SJ manual
+
+Perubahan produk sekaligus, atas permintaan user:
+
+1. **Tab "SPK" dihapus.** Sisi admin sekarang cuma 2 tab: **SJ** (halaman awal admin setelah
+   login, dulu tab "SPK") & **Ekspedisi** (monitoring, tidak berubah). File `adminSpkBelumSj.js`
+   & `prefill.js` (handoff `penjualan_id` dari tab SPK ke form Buat SJ, cuma dipakai tab itu)
+   DIHAPUS dari `ekspedisi-apk`; endpoint `GET /admin/spk-belum-sj` &
+   `AdminController::spkBelumSj()` DIHAPUS dari `backend-migrasi` (`App\Ekspedisi\Support\
+   SpkReadyKirim::listBelumSj()` ikut dihapus, `find()` dipertahankan — masih dipakai
+   `createTrip()` buat validasi `penjualan_id` opsional di form "Perjalanan Baru"). Admin sekarang
+   bikin SJ langsung dari tombol "+ Buat SJ" di tab SJ (sudah ada sebelumnya), tidak lagi lewat
+   drill-down dari daftar SPK ready-kirim.
+2. **Nomor SJ diinput manual admin**, bukan lagi auto-generate dari id/tanggal
+   (`SJ_YYYYMMDD_XXXX`) — supaya cocok nomor kertas SJ fisik yang sudah dicetak. Skema
+   `ekspedisi_t_surat_jalan` dapat kolom baru `nomor_urut` (int unsigned, unique — awalnya file
+   migrasi terpisah `04_nomor_sj_manual.sql`, sudah digabung ke `database/ekspedisi/01_schema.sql`
+   sejak konsolidasi 2026-08-23, lihat README `backend-migrasi`) sbg **sumber kebenaran** angkanya; kolom lama
+   `no_surat_jalan` (varchar) tetap ada utk kompatibilitas kontrak, tapi SEKARANG SELALU
+   diturunkan dari `nomor_urut` (`'SJ_' . nomor_urut`) oleh `App\Ekspedisi\Support\SuratJalan::
+   create()`/`update()` — admin cukup ketik angkanya (mis. "1234") di field baru "Nomor SJ" pada
+   form Buat SJ (`adminNewSuratJalan.js`), backend validasi wajib+positif+unik sebelum insert
+   (`SuratJalanController::store()`). Baris yang lahir dari checkpoint foto supir
+   (`upsertFromTripPhoto()`) TIDAK LAGI auto-assign nomor — admin lengkapi belakangan lewat
+   `PUT /admin/sj/{id}` (`nomor_urut` sekarang salah satu field yang bisa diedit di sana).
+3. **Nomor yang terlewat ditandai baris merah.** Karena nomor sekarang manual, ada risiko admin
+   lupa/lewat menginput 1 nomor kertas SJ. `App\Ekspedisi\Support\SuratJalan::listWithGaps()`
+   (dipanggil `list()` kalau `q` kosong) menghitung nomor yang hilang di antara nomor
+   terkecil-terbesar **dalam tahun yang difilter, lintas SEMUA status** (bukan cuma status view
+   yang sedang ditampilkan — supaya nomor yang sebenarnya ADA tapi kebetulan beda status tidak
+   salah ketandai "terlewat", lihat docblock method itu utk penjelasan lengkap) dan menyisipkan
+   baris VIRTUAL (`missing: true`, TIDAK ADA di DB) di posisi yang pas secara berurutan. FE
+   (`adminSuratJalan.js`) merender baris ini merah (`bg-status-alert/10`), tanpa aksi apa pun.
+   Mode pencarian (`q` diisi) TIDAK ikut deteksi gap (`listSearch()`, SQL LIMIT/OFFSET biasa) —
+   pencarian teks bebas tidak match konsep "rentang nomor berurutan". Sort tabel juga berubah
+   dari `created_at DESC` jadi `nomor_urut DESC` (baris tanpa nomor di bawah) supaya nomor yang
+   hilang kelihatan berurutan di antara tetangganya.
+4. **Aturan baru: 1 SJ boleh lintas SPK, TAPI cuma kalau semua dari klien/perusahaan yang sama.**
+   `App\Ekspedisi\Support\PenjualanItemLookup` (JOIN baru ke `t_penjualan_header`+`m_client`)
+   sekarang bawa `client_id`/`client_nama` di tiap lini produk. `GET /admin/sj/spk/{penjualan_id}
+   /items` berubah bentuk dari array polos jadi `{ client_id, client_nama, lines }`.
+   `adminNewSuratJalan.js` cek `client_id` tiap SPK yang ditambahkan cocok dgn SPK pertama sebelum
+   diizinkan masuk grup (feedback cepat); `SuratJalanController::store()` validasi ULANG di
+   server (menolak 422 kalau item yang disentuh berasal dari >1 `client_id` berbeda) — FE cuma
+   feedback, bukan satu-satunya penjaga.
+5. **Kolom Status dicopot dari tabel SJ, tombol "Detail" diganti dobel klik baris.** Karena mode
+   "aktif" sekarang murni "belum tervalidasi" (`belum_tervalidasi=1`, lihat poin di atas) dan mode
+   "riwayat" murni "tervalidasi" (`status=tervalidasi`, tidak berubah), kolom Status di tabel jadi
+   redundan — dicopot (tetap ada di modal "Detail Surat Jalan"). Tombol "Detail" di kolom Aksi
+   dihapus, digantikan `dblclick` pada `<tr>` (kursor pointer + `title` hint) yang membuka modal
+   yang sama; tombol "Validasi" (kalau ada) `stopPropagation()` supaya kliknya tidak ikut
+   kehitung dobel klik baris.
+
+Migrasi skema aslinya file terpisah (murni ADD COLUMN + UNIQUE INDEX, tidak menyentuh baris yang
+sudah ada), **sudah digabung ke `database/ekspedisi/01_schema.sql`** ("Konsolidasi Keempat",
+2026-08-23 — lihat README `backend-migrasi`) setelah dikonfirmasi jalan di produksi, supaya
+fresh install baru (mis. deploy ke shared hosting) cukup 1 file skema. 1.508 baris
+`migrasi_legacy` & sebagian besar baris `native` lama otomatis `nomor_urut IS NULL` sampai admin
+melengkapinya manual lewat `PUT /admin/sj/{id}` kalau perlu (tidak wajib, cuma baris BARU yang
+wajib punya nomor sejak perubahan ini).
 
 `router.js` redirect ke `#/login` kalau belum `isAuthenticated()`, dan redirect ke home
 role masing-masing (`#/admin` atau `#/driver`) kalau role tidak cocok dengan `roles` route

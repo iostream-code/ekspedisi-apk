@@ -36,7 +36,11 @@ export async function renderAdminDashboard($container) {
         <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Berjalan</p>
         <div class="flex items-center gap-2">
           <a href="#/admin/ekspedisi/kelola" class="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-200">${LIST_ICON} Ekspedisi</a>
+          <!-- Tombol "+ Supir" DISEMBUNYIKAN SEMENTARA (2026-08-23, permintaan user) --
+               fungsinya (link ke #/admin/driver/new) TIDAK dihapus, tinggal un-comment
+               kalau mau ditampilkan lagi:
           <a href="#/admin/driver/new" class="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100">${PLUS_ICON} Supir</a>
+          -->
         </div>
       </div>
       <div id="driver-list" class="space-y-2"></div>

@@ -2,16 +2,27 @@ import $ from 'jquery';
 import { navigate } from '../router.js';
 
 const TABS = [
-  { key: 'spk', label: 'SPK', path: '/admin' },
   { key: 'sj', label: 'SJ', path: '/admin/sj' },
-  { key: 'ekspedisi', label: 'Ekspedisi', path: '/admin/ekspedisi' },
+  // Label "Monitoring" (2026-08-23, dulu "Ekspedisi") -- key & path SENGAJA
+  // tidak ikut diganti (cuma teks tampilan yang berubah, bukan identitas
+  // internal/route-nya) -- lihat renderAdminDashboard() di adminDashboard.js.
+  { key: 'ekspedisi', label: 'Monitoring', path: '/admin/ekspedisi' },
 ];
 
 /**
- * Tab bar 3 menu tetap (SPK/SJ/Ekspedisi) di bawah topbar -- dipasang cuma
- * di 3 halaman ROOT admin (adminSpkBelumSj/adminSuratJalan/adminDashboard).
- * Halaman drill-down (detail supir, buat SJ, tambah supir, plot SPK) TIDAK
- * pakai ini -- itu tetap navbar biasa + tombol back.
+ * Tab bar 2 menu tetap (SJ/Monitoring) di bawah topbar -- dipasang cuma di 2
+ * halaman ROOT admin (adminSuratJalan/adminDashboard). Halaman drill-down
+ * (detail supir, buat SJ, tambah supir) TIDAK pakai ini -- itu tetap navbar
+ * biasa + tombol back.
+ *
+ * **[DISEDERHANAKAN 2026-08-23]** Tab "SPK" (dulu halaman awal admin,
+ * `adminSpkBelumSj.js`) DIHAPUS -- app dipangkas jadi 2 halaman admin saja.
+ * Admin sekarang bikin SJ langsung dari tombol "+ Buat SJ" di tab SJ (nomor
+ * SJ diinput manual, cocok nomor kertas fisik -- lihat adminSuratJalan.js/
+ * adminNewSuratJalan.js), tidak lagi lewat drill-down dari daftar SPK.
+ * `/admin` (landing page admin setelah login) sekarang mengarah ke tab SJ
+ * juga (lihat main.js) -- tab bar di sini otomatis konsisten krn keduanya
+ * render fungsi yang sama (renderAdminSuratJalan).
  *
  * Ukuran (px-1.5 py-1 container, gap-1, text-xs font-bold pada tiap tombol)
  * disamakan dgn tab bar inventory-apk (2026-08-22, lihat #nav-tabs-primary /
@@ -19,7 +30,7 @@ const TABS = [
  * font-semibold, lebih besar drpd konvensi inventory-apk. Warna tab TIDAK
  * aktif juga digelapkan sedikit (text-slate-500 -> text-slate-600, sama
  * arah perubahan yg dilakukan di inventory-apk).
- * @param {'spk'|'sj'|'ekspedisi'} active
+ * @param {'sj'|'ekspedisi'} active
  */
 export function renderAdminTabs($container, active) {
   const $tabs = $(`

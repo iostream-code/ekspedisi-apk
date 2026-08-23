@@ -79,7 +79,7 @@ export function renderNavbar($container, title, opts = {}) {
   }
 
   // Jam jalan (2026-08-20) -- update tiap detik, dibersihkan pas pindah
-  // halaman (pola sama dgn auto-refresh adminDashboard.js/polling adminSpkBelumSj.js)
+  // halaman (pola sama dgn auto-refresh adminDashboard.js)
   // supaya tidak numpuk interval tiap kali navbar dirender ulang.
   function tickClock() {
     const now = new Date();

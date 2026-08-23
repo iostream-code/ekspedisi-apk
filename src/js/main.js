@@ -7,7 +7,6 @@ import { renderAdminDriverDetail } from './pages/adminDriverDetail.js';
 import { renderAdminNewTrip } from './pages/adminNewTrip.js';
 import { renderAdminNewDriver } from './pages/adminNewDriver.js';
 import { renderAdminEkspedisiList } from './pages/adminEkspedisiList.js';
-import { renderAdminSpkBelumSj } from './pages/adminSpkBelumSj.js';
 import { renderAdminSuratJalan } from './pages/adminSuratJalan.js';
 import { renderAdminNewSuratJalan } from './pages/adminNewSuratJalan.js';
 import { APP_CONFIG } from './config.js';
@@ -18,9 +17,10 @@ import { initVersionCheck } from './versionCheck.js';
 registerRoute('/login', renderLogin, { public: true });
 registerRoute('/driver', renderDriverDashboard, { roles: ['driver'] });
 registerRoute('/driver/trip/:tripId', renderDriverWorkflow, { roles: ['driver'] });
-// Tab "SPK" -- halaman awal admin setelah login (lihat komponen adminTabs.js
-// utk tab bar SPK/SJ/Ekspedisi yang dipasang di 3 halaman root ini).
-registerRoute('/admin', renderAdminSpkBelumSj, { roles: ['admin'] });
+// Tab "SJ" -- halaman awal admin setelah login (2026-08-23, dulu tab "SPK"
+// -- lihat komponen adminTabs.js utk tab bar SJ/Ekspedisi yang dipasang di 2
+// halaman root ini, app disederhanakan dari 3 tab jadi 2).
+registerRoute('/admin', renderAdminSuratJalan, { roles: ['admin'] });
 registerRoute('/admin/ekspedisi', renderAdminDashboard, { roles: ['admin'] });
 // WAJIB didaftarkan SEBELUM '/admin/driver/:driverId' -- router.js first-match-wins,
 // dan pattern :driverId juga akan "menangkap" literal 'new' sebagai id kalau urutannya kebalik.

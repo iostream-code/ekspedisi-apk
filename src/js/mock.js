@@ -36,12 +36,18 @@ const store = {
   ekspedisi: [
     { id: 1, kode_ekspedisi: 'EXP-20260418-7620', nama_ekspedisi: 'Ekspedisi Jaya', pic: 'Supriyadi', alamat: null, no_telp: '08123456789', is_active: 1 },
   ],
-  nextSjId: 2,
+  nextSjId: 4,
   // Modul surat jalan MILIK app ini sendiri (ekspedisi_t_surat_jalan) -- lihat
   // App\Support\SuratJalan di driver-apk-backend, bentuk field sama persis.
+  // `nomor_urut` (2026-08-23, nomor kertas SJ fisik diinput manual admin --
+  // lihat App\Ekspedisi\Support\SuratJalan::create()/update() di
+  // backend-migrasi) -- baris seed di bawah SENGAJA null (meniru data
+  // produksi asli: baris lama/checkpoint-auto belum pernah dilengkapi nomor
+  // manualnya), KECUALI 1 baris tambahan (id 3) yang didemokan SUDAH
+  // dilengkapi, buat contoh tampilan "No SJ" bergaya manual di list.
   suratJalan: [
     {
-      id: 1, no_surat_jalan: 'SJ_20260819_0001', trip_id: 101, penjualan_id: 'INV_01701-5',
+      id: 1, no_surat_jalan: null, nomor_urut: null, trip_id: 101, penjualan_id: 'INV_01701-5',
       driver_id: 1, nama_supir: 'Budi Santoso', tujuan: 'Gudang Sidoarjo -> Toko Makmur Jaya',
       kendaraan: null, plat: null, penerima: null, jumlah_kirim: null, tgl_kirim: null,
       foto_surat_jalan: null, foto_validasi: null, divalidasi_oleh: null, divalidasi_at: null,
@@ -52,13 +58,22 @@ const store = {
     // -- driver_id NULL (pengirim lama cuma teks bebas), foto URL ABSOLUT ke
     // host lama (bukan disalin fisik), badge "Data Lama" muncul di list.
     {
-      id: 2, no_surat_jalan: 'SJ_000499', trip_id: null, penjualan_id: null,
+      id: 2, no_surat_jalan: 'SJ_000499', nomor_urut: null, trip_id: null, penjualan_id: null,
       driver_id: null, nama_supir: null, tujuan: null,
       kendaraan: 'Grandmax', plat: 'P 9012 XY', penerima: null, jumlah_kirim: 12, tgl_kirim: '2024-03-11',
       foto_surat_jalan: 'https://indokoper.com/foto_surat_jalan/foto_surat_jalan_1643341150.jpeg',
       foto_validasi: null, divalidasi_oleh: null, divalidasi_at: null, nama_validator: null,
       items: [], catatan: '-',
       status: 'terkirim', asal: 'migrasi_legacy', created_at: '2024-03-11T08:00:00.000Z',
+    },
+    // Contoh SJ dgn nomor manual sudah terisi (2026-08-23).
+    {
+      id: 3, no_surat_jalan: 'SJ_1001', nomor_urut: 1001, trip_id: null, penjualan_id: null,
+      driver_id: 1, nama_supir: 'Budi Santoso', tujuan: 'Gudang Sidoarjo -> Toko Sumber Rejeki',
+      kendaraan: 'Grandmax', plat: 'P 9659 GC', penerima: 'Pak Slamet', jumlah_kirim: 15, tgl_kirim: null,
+      foto_surat_jalan: null, foto_validasi: null, divalidasi_oleh: null, divalidasi_at: null,
+      nama_validator: null, items: [], catatan: null, status: 'terkirim', asal: 'native',
+      created_at: new Date().toISOString(),
     },
   ],
 };
@@ -94,9 +109,12 @@ const DUMMY_SURAT_JALAN = {
 // Baris yang sudah diplot (ada di store.trips) SENGAJA tidak dikeluarkan di
 // sini secara otomatis kayak query aslinya -- daftar ini statis, dianggap
 // selalu "belum diplot" tiap reload demo.
+// `client_id` (2026-08-23) -- dipakai aturan baru "1 SJ boleh lintas SPK,
+// TAPI cuma kalau semua dari klien yang sama" (lihat PenjualanItemLookup di
+// backend-migrasi, format() sekarang bawa client_id/client_nama per lini).
 const DUMMY_SPK_READY_KIRIM = [
-  { penjualan_id: 'INV_01701-5', no_spk: '01701', client_nama: 'DGI', kota_asal: 'Pusat', kota_tujuan: 'KOTA JAKARTA TIMUR', penjualan_tanggal_kirim: '2026-08-25' },
-  { penjualan_id: 'INV_01806-1', no_spk: '01806', client_nama: 'Alisha Rafina', kota_asal: 'Pusat', kota_tujuan: 'KOTA DENPASAR', penjualan_tanggal_kirim: '2026-08-27' },
+  { penjualan_id: 'INV_01701-5', no_spk: '01701', client_id: 1, client_nama: 'DGI', kota_asal: 'Pusat', kota_tujuan: 'KOTA JAKARTA TIMUR', penjualan_tanggal_kirim: '2026-08-25' },
+  { penjualan_id: 'INV_01806-1', no_spk: '01806', client_id: 2, client_nama: 'Alisha Rafina', kota_asal: 'Pusat', kota_tujuan: 'KOTA DENPASAR', penjualan_tanggal_kirim: '2026-08-27' },
 ];
 
 // Dummy lini produk per SPK buat demo GET /admin/sj/spk/:id/items (lihat
@@ -139,6 +157,9 @@ function resolvePenjualanId(input) {
 // itu satu-satunya sumber data SPK dummy yang ada). Dipakai kolom "Klien"
 // GET /admin/sj -- gabungan "Klien 1 | Klien 2" kalau >1 SPK/klien tersentuh.
 const SPK_CLIENT_BY_ID = Object.fromEntries(DUMMY_SPK_READY_KIRIM.map((s) => [s.penjualan_id, s.client_nama]));
+// spkId -> { client_id, client_nama } -- dipakai GET /admin/sj/spk/:id/items
+// (bentuk response baru 2026-08-23) & validasi 1-klien-per-SJ di POST /admin/sj.
+const SPK_META_BY_ID = Object.fromEntries(DUMMY_SPK_READY_KIRIM.map((s) => [s.penjualan_id, { client_id: s.client_id, client_nama: s.client_nama }]));
 function clientNamesForSj(sj) {
   const spkIds = [...new Set((sj.items || []).map((it) => it.penjualan_id).filter(Boolean))];
   const ids = spkIds.length ? spkIds : (sj.penjualan_id ? [sj.penjualan_id] : []);
@@ -207,10 +228,10 @@ function field(data, key) {
 }
 
 export function mockRequest(rawPath, method, data) {
-  // Beberapa endpoint (GET /admin/sj, /admin/spk-belum-sj) sekarang dipanggil
-  // dgn query string (?q=&page=&per_page=&status=) -- pisahkan dulu supaya
-  // matching `path === '/admin/sj'` di bawah tetap jalan, `query` dipakai
-  // handler yang butuh.
+  // GET /admin/sj sekarang dipanggil dgn query string
+  // (?q=&page=&per_page=&status=&belum_tervalidasi=&tahun=) -- pisahkan dulu
+  // supaya matching `path === '/admin/sj'` di bawah tetap jalan, `query`
+  // dipakai handler yang butuh.
   const [path, queryString] = rawPath.split('?');
   const query = Object.fromEntries(new URLSearchParams(queryString || ''));
 
@@ -414,10 +435,21 @@ export function mockRequest(rawPath, method, data) {
     return deferred.promise();
   }
 
-  // GET /admin/sj -> daftar surat jalan (modul milik app ini sendiri), query opsional q/status/tahun/page/per_page
+  // GET /admin/sj -> daftar surat jalan (modul milik app ini sendiri), query
+  // opsional q/status/belum_tervalidasi/tahun/page/per_page. Sort mendekati
+  // App\Ekspedisi\Support\SuratJalan (nomor_urut DESC dulu, baris tanpa nomor
+  // di bawah, created_at DESC) -- TAPI deteksi "nomor terlewat" (baris merah
+  // virtual, listWithGaps() di backend) SENGAJA TIDAK direplikasi di sini,
+  // cukup kompleks utk demo & MOCK_MODE defaultnya sudah false (lihat config.js).
   if (method === 'GET' && path === '/admin/sj') {
-    let list = [...store.suratJalan].sort((a, b) => new Date(b.created_at) - new Date(a.created_at) || b.id - a.id);
+    let list = [...store.suratJalan].sort((a, b) => {
+      if (a.nomor_urut != null && b.nomor_urut != null) return b.nomor_urut - a.nomor_urut;
+      if (a.nomor_urut != null) return -1;
+      if (b.nomor_urut != null) return 1;
+      return new Date(b.created_at) - new Date(a.created_at) || b.id - a.id;
+    });
     if (query.status) list = list.filter((sj) => sj.status === query.status);
+    else if (query.belum_tervalidasi) list = list.filter((sj) => sj.status !== 'tervalidasi');
     // COALESCE(tgl_kirim, created_at) -- sama persis App\Support\SuratJalan::list()
     // di backend-migrasi, biar filter tahun konsisten antara mock & real API.
     if (query.tahun) list = list.filter((sj) => new Date(sj.tgl_kirim || sj.created_at).getFullYear() === Number(query.tahun));
@@ -440,24 +472,39 @@ export function mockRequest(rawPath, method, data) {
     return delay(years);
   }
 
-  // GET /admin/sj/spk/:penjualan_id/items -> lini produk 1 SPK + sisa qty (lihat PenjualanItemLookup)
+  // GET /admin/sj/spk/:penjualan_id/items -> { client_id, client_nama, lines }
+  // (2026-08-23, dulu array polos -- lihat SuratJalanController::spkItems() di backend-migrasi)
   m = path.match(/^\/admin\/sj\/spk\/([^/]+)\/items$/);
   if (method === 'GET' && m) {
     const resolvedId = resolvePenjualanId(decodeURIComponent(m[1]));
     const lines = resolvedId ? DUMMY_PENJUALAN_ITEMS[resolvedId] : null;
+    const meta = resolvedId ? SPK_META_BY_ID[resolvedId] : null;
     const deferred = $.Deferred();
     setTimeout(() => {
-      if (lines) deferred.resolve(lines.map((l) => ({ ...l })));
-      else deferred.reject({ responseJSON: { message: 'SPK/penjualan_id tidak ditemukan, cek lagi penulisannya.' } });
+      if (lines) {
+        deferred.resolve({
+          client_id: meta?.client_id ?? null,
+          client_nama: meta?.client_nama ?? null,
+          lines: lines.map((l) => ({ ...l, client_id: meta?.client_id ?? null, client_nama: meta?.client_nama ?? null })),
+        });
+      } else {
+        deferred.reject({ responseJSON: { message: 'SPK/penjualan_id tidak ditemukan, cek lagi penulisannya.' } });
+      }
     }, 300);
     return deferred.promise();
   }
 
-  // POST /admin/sj -> bikin surat jalan manual dari admin -- driver_id WAJIB,
-  // items opsional (breakdown per lini produk, BOLEH lintas beberapa SPK sekaligus)
+  // POST /admin/sj -> bikin surat jalan manual dari admin -- nomor_urut &
+  // driver_id WAJIB, items opsional (breakdown per lini produk, BOLEH lintas
+  // beberapa SPK sekaligus TAPI cuma kalau semua dari klien yang sama, lihat
+  // validasi client_id di bawah -- aturan baru 2026-08-23).
   if (method === 'POST' && path === '/admin/sj') {
     const deferredStore = $.Deferred();
     setTimeout(() => {
+      const nomorUrut = Number(data.nomor_urut || 0);
+      if (!nomorUrut || nomorUrut <= 0) { deferredStore.reject({ responseJSON: { message: 'Nomor SJ wajib diisi (angka sesuai nomor kertas SJ fisik).' } }); return; }
+      if (store.suratJalan.some((sj) => sj.nomor_urut === nomorUrut)) { deferredStore.reject({ responseJSON: { message: `Nomor SJ ${nomorUrut} sudah dipakai, cek lagi.` } }); return; }
+
       if (!data.driver_id) { deferredStore.reject({ responseJSON: { message: 'Supir wajib dipilih.' } }); return; }
       const driver = store.drivers.find((d) => d.id === Number(data.driver_id));
       if (!driver) { deferredStore.reject({ responseJSON: { message: 'Supir tidak ditemukan.' } }); return; }
@@ -477,6 +524,15 @@ export function mockRequest(rawPath, method, data) {
           penjualan_id: found ? found.spkId : null,
         };
       });
+
+      const touchedClients = Object.fromEntries(
+        items.map((it) => SPK_META_BY_ID[it.penjualan_id]).filter(Boolean).map((meta) => [meta.client_id, meta.client_nama])
+      );
+      if (Object.keys(touchedClients).length > 1) {
+        deferredStore.reject({ responseJSON: { message: `SPK yang dipilih dari klien/perusahaan berbeda (${Object.values(touchedClients).join(', ')}) -- 1 SJ hanya boleh mengangkut SPK dari klien yang sama.` } });
+        return;
+      }
+
       const jumlahKirim = items.length ? items.reduce((sum, it) => sum + it.jumlah_kirim, 0) : (data.jumlah_kirim ? Number(data.jumlah_kirim) : null);
 
       // Auto-bikin trip utk supir INTERNAL kalau belum ditautkan ke trip
@@ -493,6 +549,8 @@ export function mockRequest(rawPath, method, data) {
 
       const sj = {
         id: store.nextSjId++,
+        no_surat_jalan: `SJ_${nomorUrut}`,
+        nomor_urut: nomorUrut,
         trip_id: tripId,
         penjualan_id: null,
         driver_id: driver.id,
@@ -514,7 +572,6 @@ export function mockRequest(rawPath, method, data) {
         asal: 'native',
         created_at: new Date().toISOString(),
       };
-      sj.no_surat_jalan = `SJ_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}_${String(sj.id).padStart(4, '0')}`;
       store.suratJalan.push(sj);
       deferredStore.resolve(sj);
     }, 400);
@@ -590,28 +647,6 @@ export function mockRequest(rawPath, method, data) {
   if (method === 'POST' && m) {
     const trip = seedTrip(Number(m[1]), data.destination || 'Perjalanan tanpa tujuan', data.no_surat_jalan || null, data.penjualan_id || null);
     return delay(formatTrip(trip), 400);
-  }
-
-  // GET /admin/spk-belum-sj -> tab "SPK" -- SPK ready-kirim yang belum ada SJ sama sekali.
-  // ("Plot SPK ke Supir"/GET /admin/spk-ready-kirim DIHAPUS 2026-08-20 -- tab Ekspedisi
-  // sekarang murni monitoring, lihat mock GET /admin/drivers di atas.)
-  // Dicek dari header penjualan_id (jalur trip-linked lama) DAN items[].penjualan_id
-  // (jalur manual breakdown produk, bisa lintas SPK) -- sama seperti query aslinya.
-  if (method === 'GET' && path === '/admin/spk-belum-sj') {
-    const spkYangSudahAdaSj = new Set();
-    store.suratJalan.forEach((sj) => {
-      if (sj.penjualan_id) spkYangSudahAdaSj.add(sj.penjualan_id);
-      (sj.items || []).forEach((it) => { if (it.penjualan_id) spkYangSudahAdaSj.add(it.penjualan_id); });
-    });
-    let list = DUMMY_SPK_READY_KIRIM.filter((spk) => !spkYangSudahAdaSj.has(spk.penjualan_id));
-    if (query.q) {
-      const q = query.q.toLowerCase();
-      list = list.filter((spk) => [spk.client_nama, spk.no_spk].some((v) => String(v || '').toLowerCase().includes(q)));
-    }
-    const page = Number(query.page) || 1;
-    const perPage = Number(query.per_page) || 20;
-    const start = (page - 1) * perPage;
-    return delay({ data: list.slice(start, start + perPage), total: list.length, page, per_page: perPage }, 300);
   }
 
   // GET /admin/surat-jalan/:no  -> cek nomor SJ asli (lihat SuratJalanLookup di driver-apk-backend)

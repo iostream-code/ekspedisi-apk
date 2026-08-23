@@ -165,33 +165,48 @@ function detailBodyHtml(sj) {
 }
 
 /**
- * Tab "SJ". Model tabel (bukan kartu), meniru pola toolbar "Data | jumlah +
- * tombol Refresh/Riwayat" di surat-jalan-apk (lihat components/tableToolbar.js).
- * Dua sumber baris tercampur: otomatis dari checkpoint foto "sj" supir
- * (trip_id terisi), dan manual dibuat admin lewat "+ Buat SJ" (trip_id boleh
- * kosong). SAMA SEKALI TIDAK berhubungan dengan tabel surat_jalan lama milik
- * backend-production (itu cuma dipakai fitur "Cek" no_surat_jalan di form
- * Perjalanan Baru, lihat adminNewTrip.js).
+ * Tab "SJ" -- halaman awal admin setelah login (2026-08-23, dulu tab "SPK",
+ * dihapus -- lihat adminTabs.js). Model tabel (bukan kartu), meniru pola
+ * toolbar "Data | jumlah + tombol Refresh/Riwayat" di surat-jalan-apk (lihat
+ * components/tableToolbar.js). Dua sumber baris tercampur: otomatis dari
+ * checkpoint foto "sj" supir (trip_id terisi), dan manual dibuat admin lewat
+ * "+ Buat SJ" (trip_id boleh kosong). SAMA SEKALI TIDAK berhubungan dengan
+ * tabel surat_jalan lama milik backend-production (itu cuma dipakai fitur
+ * "Cek" no_surat_jalan di form Perjalanan Baru, lihat adminNewTrip.js).
  *
- * Dua mode:
- * - Aktif (default): SEMUA status (draft/terkirim/tervalidasi) tercampur --
- *   ini memang tujuan utama tab ini, supaya admin lihat progres apa adanya.
- * - Riwayat: filter status='tervalidasi' (SJ yang closing-nya sudah selesai).
- * Server-side pagination+search (2026-08-20, tabel ini bisa py ribuan baris
- * stlh migrate_legacy_surat_jalan.php) -- historyMode JUGA jadi filter
- * server (?status=tervalidasi), BUKAN filter client-side lagi, krn cuma 1
- * halaman data yang ada di browser kapan pun (filter client-side thd 1
- * halaman = hasil salah/tidak lengkap).
+ * **Dua mode, didefinisikan ulang 2026-08-23 (dulu "aktif" = semua status
+ * tercampur, "riwayat" = tervalidasi):**
+ * - Aktif (default): `belum_tervalidasi=1` -- SJ yang BELUM tervalidasi.
+ * - Riwayat: `status=tervalidasi` (tidak berubah dari sebelumnya).
+ * Karena "aktif" sekarang selalu 1 status yang berlawanan dari "riwayat",
+ * kolom Status DICOPOT dari tabel (tidak menambah informasi lagi -- lihat
+ * detailBodyHtml() kalau masih perlu dicek per baris). Server-side
+ * pagination+search (2026-08-20, tabel ini bisa py ribuan baris stlh
+ * migrate_legacy_surat_jalan.php) -- historyMode JUGA jadi filter server,
+ * BUKAN filter client-side lagi, krn cuma 1 halaman data yang ada di browser
+ * kapan pun (filter client-side thd 1 halaman = hasil salah/tidak lengkap).
+ *
+ * **Nomor SJ terlewat ditandai merah** (2026-08-23) -- nomor SJ (`no_surat_jalan`/
+ * `nomor_urut`) sekarang diinput manual admin (cocok nomor kertas fisik, lihat
+ * adminNewSuratJalan.js), jadi bisa ada nomor yang KELEWAT tidak pernah
+ * diinput. Backend (`App\Ekspedisi\Support\SuratJalan::listWithGaps()`)
+ * menyisipkan baris VIRTUAL (`sj.missing === true`, tidak ada di DB) untuk
+ * tiap nomor yang hilang dalam rentang tahun yang difilter -- baris ini
+ * dirender merah, TANPA aksi apa pun (tidak ada dblclick/Validasi, tidak ada
+ * data lain buat ditampilkan).
  *
  * Kolom tabel (2026-08-20, dirampingkan; kolom Tujuan ikut dicopot susulan
- * hari yang sama; kolom Keterangan ditambah lagi 2026-08-21 di samping Status,
- * isinya `sj.catatan` -- field yang sama dipakai form "Buat SJ", lihat
- * adminNewSuratJalan.js) -- No SJ, Klien, Dikirim, Status, Keterangan, Aksi.
- * Info sekunder lain (Tujuan, Supir/kendaraan, Penerima, breakdown Kirim,
- * tanggal Dibuat, badge "Data Lama"/info validasi, Foto) tetap di modal
- * "Detail Surat Jalan" (lihat detailBodyHtml() & components/modal.js) --
- * dipicu tombol "Detail" di kolom Aksi, supaya tabel tidak melebar/menurun
- * cuma gara-gara info yang tidak selalu perlu dilihat sekilas.
+ * hari yang sama; kolom Keterangan ditambah lagi 2026-08-21; kolom Status
+ * DICOPOT 2026-08-23, lihat di atas) -- No SJ, Klien, Dikirim, Keterangan,
+ * Aksi. Info sekunder lain (Tujuan, Supir/kendaraan, Penerima, breakdown
+ * Kirim, tanggal Dibuat, Status, badge "Data Lama"/info validasi, Foto) tetap
+ * di modal "Detail Surat Jalan" (lihat detailBodyHtml() & components/modal.js)
+ * -- **dipicu DOBEL KLIK pada baris** (2026-08-23, dulu tombol "Detail" di
+ * kolom Aksi -- dihapus, kolom Aksi sekarang cuma tombol Validasi kalau ada).
+ * **Kolom Aksi DICOPOT SELURUHNYA di mode Riwayat** (2026-08-23, susulan --
+ * satu-satunya isinya, tombol Validasi, tidak pernah muncul di sana karena
+ * semua barisnya sudah tervalidasi, jadi kolomnya sendiri ikut dihapus,
+ * bukan cuma dikosongkan -- lihat `showAksi` di render()).
  */
 export async function renderAdminSuratJalan($container) {
   renderNavbar($container, 'Ekspedisi');
@@ -235,7 +250,7 @@ export async function renderAdminSuratJalan($container) {
     let result;
     try {
       result = await api.get(`/admin/sj?${new URLSearchParams({
-        ...(historyMode ? { status: 'tervalidasi' } : {}),
+        ...(historyMode ? { status: 'tervalidasi' } : { belum_tervalidasi: '1' }),
         ...(query ? { q: query } : {}),
         ...(tahun ? { tahun } : {}),
         page: String(page),
@@ -288,6 +303,11 @@ export async function renderAdminSuratJalan($container) {
     // thead `sticky top-0` di bawah supaya header ikut "nempel" pas scroll --
     // secara visual cuma badan tabel yang bergerak, bukan seluruh halaman
     // (toolbar & paginasi tetap kelihatan tanpa perlu scroll dokumen).
+    // Kolom "Aksi" cuma relevan di mode aktif (satu-satunya isinya, tombol
+    // Validasi, tidak pernah muncul di Riwayat krn semua barisnya sudah
+    // tervalidasi) -- 2026-08-23, dicopot SELURUHNYA (bukan cuma dikosongkan)
+    // di mode Riwayat biar tabel tidak nyisain kolom kosong percuma.
+    const showAksi = !historyMode;
     const $tableWrap = $(`<div class="scroll-area max-h-[65vh] overflow-auto"></div>`);
     const $table = $(`
       <table class="w-full text-sm tbl-bordered">
@@ -296,9 +316,8 @@ export async function renderAdminSuratJalan($container) {
             <th class="whitespace-nowrap px-3 py-2 text-center">No SJ</th>
             <th class="whitespace-nowrap px-3 py-2 text-center">Klien</th>
             <th class="whitespace-nowrap px-3 py-2 text-center">Dikirim</th>
-            <th class="whitespace-nowrap px-3 py-2 text-center">Status</th>
             <th class="whitespace-nowrap px-3 py-2 text-center">Keterangan</th>
-            <th class="whitespace-nowrap px-3 py-2 text-center">Aksi</th>
+            ${showAksi ? '<th class="whitespace-nowrap px-3 py-2 text-center">Aksi</th>' : ''}
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100"></tbody>
@@ -307,49 +326,57 @@ export async function renderAdminSuratJalan($container) {
     const $tbody = $table.find('tbody');
 
     list.forEach((sj) => {
+      // Baris VIRTUAL "nomor terlewat" (2026-08-23, lihat App\Ekspedisi\Support\
+      // SuratJalan::listWithGaps() di backend) -- tidak ada di DB sama sekali,
+      // TIDAK PUNYA aksi apa pun (dblclick/Validasi), cuma penanda visual merah.
+      // colspan pesannya ikut menyesuaikan ada/tidaknya kolom Aksi (3 kalau
+      // ada, 4 kalau tidak -- lihat showAksi di atas).
+      if (sj.missing) {
+        $tbody.append(`
+          <tr class="bg-status-alert/10">
+            <td class="whitespace-nowrap px-3 py-2.5 font-medium text-status-alert">${sj.no_surat_jalan}</td>
+            <td class="whitespace-nowrap px-3 py-2.5 text-status-alert" colspan="${showAksi ? 3 : 4}">Nomor ini belum pernah diinput -- kemungkinan kertas SJ terlewat/hilang.</td>
+            ${showAksi ? '<td class="whitespace-nowrap px-3 py-2.5"></td>' : ''}
+          </tr>
+        `);
+        return;
+      }
+
       const tglKirim = formatTanggal(sj.tgl_kirim);
 
       const $tr = $(`
-        <tr>
-          <td class="whitespace-nowrap px-3 py-2.5 align-top font-medium text-ink">${sj.no_surat_jalan || '(belum di-generate)'}</td>
+        <tr class="cursor-pointer hover:bg-slate-50" title="Dobel klik untuk lihat detail">
+          <td class="whitespace-nowrap px-3 py-2.5 align-top font-medium text-ink">${sj.no_surat_jalan || '(belum ada nomor)'}</td>
           <td class="whitespace-nowrap px-3 py-2.5 align-top text-slate-600">${clientLabel(sj)}</td>
           <td class="whitespace-nowrap px-3 py-2.5 align-top text-slate-500">${tglKirim || '-'}</td>
-          <td class="whitespace-nowrap px-3 py-2.5 align-top">
-            <span class="rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CLASS[sj.status] || 'bg-slate-100 text-slate-600'}" data-status-badge>${STATUS_LABEL[sj.status] || sj.status}</span>
-          </td>
           <td class="max-w-[180px] truncate px-3 py-2.5 align-top text-slate-500">${sj.catatan || '-'}</td>
-          <td class="whitespace-nowrap px-3 py-2.5 align-top">
-            <div class="flex gap-1.5" data-aksi></div>
-          </td>
+          ${showAksi ? '<td class="whitespace-nowrap px-3 py-2.5 align-top"><div class="flex gap-1.5" data-aksi></div></td>' : ''}
         </tr>
       `);
 
-      const $detailBtn = $(`<button class="btn-table-action">Detail</button>`);
-      $detailBtn.on('click', () => renderModal({ title: 'Detail Surat Jalan', bodyHtml: detailBodyHtml(sj) }));
-      $tr.find('[data-aksi]').append($detailBtn);
+      $tr.on('dblclick', () => renderModal({ title: 'Detail Surat Jalan', bodyHtml: detailBodyHtml(sj) }));
 
-      if (sj.status !== 'tervalidasi') {
+      if (showAksi && sj.status !== 'tervalidasi') {
         // SJ fisik yang sudah ditandatangani penerima & dibawa balik supir --
         // admin foto dokumen final itu di sini, sekalian menutup alur validasi.
+        // stopPropagation supaya klik tombol ini tidak ikut kehitung dobel klik
+        // baris (yang buka modal Detail).
         const $btn = $(`<button class="btn-table-action">Validasi</button>`);
-        $btn.on('click', async () => {
+        $btn.on('click', async (e) => {
+          e.stopPropagation();
           let blob;
           try {
             blob = await takePhoto();
           } catch (e) {
             return; // batal ambil foto
           }
-          setButtonLoading($btn, true, '...');
+          setButtonLoading($btn, true, '');
           api.uploadFile(`/admin/sj/${sj.id}/validasi`, blob, 'photo')
             .then((updated) => {
               // Sinkronkan `sj` di closure ini dgn response terbaru (status,
               // foto_validasi, nama_validator, divalidasi_at) -- dipakai
-              // kalau admin buka "Detail" SESUDAH validasi ini.
+              // kalau admin buka "Detail" (dobel klik) SESUDAH validasi ini.
               Object.assign(sj, updated);
-              $tr.find('[data-status-badge]')
-                .removeClass('bg-yellow-50 text-yellow-700 bg-status-online/10 text-status-online')
-                .addClass(STATUS_CLASS.tervalidasi)
-                .text(STATUS_LABEL.tervalidasi);
               $btn.remove();
             })
             .catch((xhr) => {

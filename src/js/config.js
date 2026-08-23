@@ -18,8 +18,8 @@ export const APP_CONFIG = {
   // di pemanggilnya masing-masing (api.js/auth.js/versionCheck.js), BUKAN di sini --
   // API_BASE_URL tetap murni base host, jangan tambah '/ekspedisi' di sini juga
   // (nanti dobel).
-  API_BASE_URL: 'http://127.0.0.1:8000', // API LOCAL
-  // API_BASE_URL: 'https://ekspedisi.devkoperindo.com', // API STAGING/PRODUCTION -- lihat ../backend-migrasi/DEPLOY.md
+  // API_BASE_URL: 'http://127.0.0.1:8000', // API LOCAL
+  API_BASE_URL: 'https://migrasi.koperindo.id', // API STAGING/PRODUCTION -- lihat ../backend-migrasi/DEPLOY.md
   LOGIN_ENDPOINT: '/login', // POST (API_BASE_URL + '/ekspedisi' + ini, lihat auth.js) { username, password } -> { token, role, user } langsung, 1 request saja
   LOCATION_PING_INTERVAL_MS: 30000, // kirim update lokasi tiap 30 detik saat status online
   GEO_TIMEOUT_MS: 20000,

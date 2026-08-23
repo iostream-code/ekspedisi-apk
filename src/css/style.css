@@ -170,7 +170,7 @@
   }
 }
 
-/* Wrapper tabel dgn scroll internal (adminSpkBelumSj.js/adminSuratJalan.js,
+/* Wrapper tabel dgn scroll internal (adminSuratJalan.js,
    lihat max-h-[65vh] overflow-auto) -- scrollbar dibuat SELALU KELIHATAN
    (bukan cuma muncul pas discroll) supaya jelas masih ada baris di bawah yang
    belum kelihatan, krn banyak WebView (termasuk Cordova Android) default-nya
