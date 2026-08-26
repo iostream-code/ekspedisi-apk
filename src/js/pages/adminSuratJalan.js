@@ -1,6 +1,7 @@
 import $ from 'jquery';
 import { renderNavbar } from '../components/navbar.js';
 import { renderAdminTabs } from '../components/adminTabs.js';
+import { renderSjSubTabs } from '../components/sjSubTabs.js';
 import { renderTableToolbar } from '../components/tableToolbar.js';
 import { renderPagination } from '../components/pagination.js';
 import { renderModal } from '../components/modal.js';
@@ -214,6 +215,7 @@ export async function renderAdminSuratJalan($container) {
 
   const $main = $(`<main class="flex-1 space-y-3 p-4"></main>`);
   $container.append($main);
+  renderSjSubTabs($main, 'customer');
 
   const $tableSection = $(`<div></div>`);
   $main.append($tableSection);

@@ -9,6 +9,8 @@ import { renderAdminNewDriver } from './pages/adminNewDriver.js';
 import { renderAdminEkspedisiList } from './pages/adminEkspedisiList.js';
 import { renderAdminSuratJalan } from './pages/adminSuratJalan.js';
 import { renderAdminNewSuratJalan } from './pages/adminNewSuratJalan.js';
+import { renderAdminSuratJalanPo } from './pages/adminSuratJalanPo.js';
+import { renderAdminNewSuratJalanPo } from './pages/adminNewSuratJalanPo.js';
 import { APP_CONFIG } from './config.js';
 import { login, isAuthenticated } from './auth.js';
 import { initLightboxDelegation } from './components/lightbox.js';
@@ -29,6 +31,13 @@ registerRoute('/admin/ekspedisi/kelola', renderAdminEkspedisiList, { roles: ['ad
 // WAJIB didaftarkan SEBELUM '/admin/sj' kalau nanti ada '/admin/sj/:id' -- saat
 // ini belum ada, tapi urutan ini disiapkan biar konsisten dgn pola driver/new di atas.
 registerRoute('/admin/sj/new', renderAdminNewSuratJalan, { roles: ['admin'] });
+// Submenu "PO" (2026-08-26, lihat components/sjSubTabs.js) -- SJ Tarik utk
+// Purchase Order, TABEL/BACKEND BEDA TOTAL dari '/admin/sj' di atas (lihat
+// docblock adminSuratJalanPo.js). '/admin/sj/po/new' didaftarkan sebelum
+// '/admin/sj/po' sekadar konsisten gaya dgn pola '/admin/sj/new' di atas --
+// tidak ada segmen dinamis di sini jadi urutannya sendiri tidak signifikan.
+registerRoute('/admin/sj/po/new', renderAdminNewSuratJalanPo, { roles: ['admin'] });
+registerRoute('/admin/sj/po', renderAdminSuratJalanPo, { roles: ['admin'] });
 registerRoute('/admin/sj', renderAdminSuratJalan, { roles: ['admin'] });
 registerRoute('/admin/driver/:driverId', renderAdminDriverDetail, { roles: ['admin'] });
 registerRoute('/admin/driver/:driverId/trip/new', renderAdminNewTrip, { roles: ['admin'] });
