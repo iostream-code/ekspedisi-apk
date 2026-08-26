@@ -8,6 +8,61 @@ import { pageLoaderHtml, emptyStateHtml, setButtonLoading } from '../components/
 import { api } from '../api.js';
 import { navigate } from '../router.js';
 
+/**
+ * Kartu "PO Menunggu Siap Kirim" (2026-08-26, SUSULAN) -- APPROVED belum
+ * READY, ditandai Admin di sini (GET /admin/sj-po/approved-po, POST
+ * /admin/sj-po/po/{id}/ready). Dipindah dari produksi-apk (tombol "Siap
+ * Kirim" yang dulu ada di popup detail PO Jakarta, SUDAH DICABUT dari sana,
+ * commit terpisah) -- Admin/Pusat yang menentukan kapan barang siap
+ * diambil/dikirim, bukan Jakarta yang menunggu barang datang. Begitu
+ * ditandai READY, PO itu otomatis muncul di dropdown "Buat SJ Tarik"
+ * (outstanding-po, lihat adminNewSuratJalanPo.js) -- TIDAK ADA link
+ * langsung ke situ dari sini, admin cukup buka menu itu sendiri sesudahnya.
+ */
+async function renderApprovedPoCard($container, onReady) {
+  let approved = [];
+  try {
+    approved = await api.get('/admin/sj-po/approved-po');
+  } catch (e) {
+    return; // gagal diam-diam -- kartu ini cuma nice-to-have, tidak boleh gagalin seluruh halaman
+  }
+  if (!approved.length) return;
+
+  const $card = $(`
+    <div class="card mb-3 space-y-2 p-3">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">PO Menunggu Siap Kirim (${approved.length})</p>
+      <div data-approved-rows class="space-y-2"></div>
+    </div>
+  `);
+  const $rows = $card.find('[data-approved-rows]');
+
+  approved.forEach((po) => {
+    const $row = $(`
+      <div class="flex items-center gap-2 rounded-xl border border-slate-200 p-2.5">
+        <div class="flex-1 min-w-0">
+          <p class="truncate text-sm font-medium text-ink">${po.po_number}</p>
+          <p class="truncate text-xs text-slate-400">${po.supplier_name} &middot; ${po.items.length} item</p>
+        </div>
+        <button class="btn-ghost shrink-0 !py-2 px-3 text-xs">Siap Kirim</button>
+      </div>
+    `);
+    $row.find('button').on('click', async function () {
+      const $btn = $(this);
+      setButtonLoading($btn, true, '...');
+      try {
+        await api.post(`/admin/sj-po/po/${po.po_id}/ready`, {});
+        onReady();
+      } catch (xhr) {
+        alert(xhr?.responseJSON?.message || 'Gagal menandai Siap Kirim.');
+        setButtonLoading($btn, false);
+      }
+    });
+    $rows.append($row);
+  });
+
+  $container.append($card);
+}
+
 const STATUS_LABEL = { DRAFT: 'Draft', SENT: 'Dikirim', PARTIAL_RECEIVED: 'Sebagian Diterima', RECEIVED: 'Diterima', CANCELLED: 'Dibatalkan' };
 const STATUS_CLASS = {
   DRAFT: 'bg-yellow-50 text-yellow-700',
@@ -106,6 +161,14 @@ export async function renderAdminSuratJalanPo($container) {
   const $main = $(`<main class="flex-1 space-y-3 p-4"></main>`);
   $container.append($main);
   renderSjSubTabs($main, 'po');
+
+  const $readySection = $(`<div></div>`);
+  $main.append($readySection);
+  function loadApprovedCard() {
+    $readySection.empty();
+    renderApprovedPoCard($readySection, loadApprovedCard);
+  }
+  loadApprovedCard();
 
   const $tableSection = $(`<div></div>`);
   $main.append($tableSection);
