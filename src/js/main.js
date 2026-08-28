@@ -4,7 +4,6 @@ import { renderDriverDashboard } from './pages/driverDashboard.js';
 import { renderDriverWorkflow } from './pages/driverWorkflow.js';
 import { renderAdminDashboard } from './pages/adminDashboard.js';
 import { renderAdminDriverDetail } from './pages/adminDriverDetail.js';
-import { renderAdminNewTrip } from './pages/adminNewTrip.js';
 import { renderAdminNewDriver } from './pages/adminNewDriver.js';
 import { renderAdminEkspedisiList } from './pages/adminEkspedisiList.js';
 import { renderAdminSuratJalan } from './pages/adminSuratJalan.js';
@@ -40,7 +39,6 @@ registerRoute('/admin/sj/po/new', renderAdminNewSuratJalanPo, { roles: ['admin']
 registerRoute('/admin/sj/po', renderAdminSuratJalanPo, { roles: ['admin'] });
 registerRoute('/admin/sj', renderAdminSuratJalan, { roles: ['admin'] });
 registerRoute('/admin/driver/:driverId', renderAdminDriverDetail, { roles: ['admin'] });
-registerRoute('/admin/driver/:driverId/trip/new', renderAdminNewTrip, { roles: ['admin'] });
 
 async function bootstrap() {
   // Popup gambar (lightbox) utk SEMUA <img data-lightbox> di app ini (2026-08-20)

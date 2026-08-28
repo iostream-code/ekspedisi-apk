@@ -82,8 +82,10 @@ export async function renderAdminDriverDetail($container, params) {
       <div id="doc-slots" class="grid grid-cols-3 gap-3"></div>
     </section>
 
-    <button id="btn-new-trip" class="btn-route mb-4 w-full">+ Perjalanan Baru</button>
-
+    <!-- Tombol "+ Perjalanan Baru" DIHAPUS (2026-08-25) -- fitur bikin trip
+         manual dari halaman ini dihilangkan atas permintaan; route
+         '/admin/driver/:driverId/trip/new' & adminNewTrip.js ikut dihapus
+         (satu-satunya pemanggilnya cuma tombol ini, lihat main.js). -->
     <p class="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Riwayat Perjalanan</p>
     <div id="trip-list" class="space-y-3"></div>
   `);
@@ -95,16 +97,22 @@ export async function renderAdminDriverDetail($container, params) {
     renderDocSlot($docSlots, driverId, 'foto_stnk', 'STNK', detail.foto_stnk);
   }
 
-  $main.find('#btn-new-trip').on('click', () => navigate(`/admin/driver/${driverId}/trip/new`));
-
   const $tripList = $main.find('#trip-list');
-  (detail.trips || []).forEach((trip) => {
+  // Cuma 5 perjalanan terakhir yang ditampilkan (permintaan 2026-08-25, biar
+  // tidak kepanjangan di layar) -- data.trips dari backend sudah ORDER BY id
+  // DESC (terbaru dulu), jadi slice 5 pertama = 5 terakhir, bukan perlu
+  // sorting ulang di sini.
+  (detail.trips || []).slice(0, 5).forEach((trip) => {
     const isActive = trip.status_label === 'Sedang Berjalan';
+    // Label "Sedang Berjalan" ditampilkan sbg "Proses" (permintaan
+    // 2026-08-25) -- cuma soal tampilan, perbandingan status di atas TETAP
+    // pakai nilai asli dari backend, tidak ikut diubah.
+    const displayLabel = isActive ? 'Proses' : trip.status_label;
     const $card = $(`
       <div class="card p-4">
         <div class="flex items-center justify-between">
           <p class="font-medium text-ink">${trip.destination || 'Perjalanan #' + trip.id}</p>
-          <span class="rounded-full px-2 py-0.5 text-xs font-medium ${isActive ? 'bg-status-online/10 text-status-online' : 'bg-slate-100 text-slate-600'}">${trip.status_label}</span>
+          <span class="rounded-full px-2 py-0.5 text-xs font-medium ${isActive ? 'bg-status-online/10 text-status-online' : 'bg-blue-100 text-blue-700'}">${displayLabel}</span>
         </div>
         <p class="mt-1 text-xs text-slate-400">${trip.created_at}${trip.penjualan_id ? ' &middot; ' + formatSpkNo(trip.penjualan_id) : ''}${trip.no_surat_jalan ? ' &middot; SJ ' + trip.no_surat_jalan : ''}</p>
         <div class="mt-3 flex gap-2" data-photos></div>
@@ -128,7 +136,7 @@ export async function renderAdminDriverDetail($container, params) {
         setButtonLoading($btn, true, 'Menyimpan...');
         api.post(`/admin/trips/${trip.id}/complete`, {})
           .then(() => {
-            $card.find('span.rounded-full').removeClass('bg-status-online/10 text-status-online').addClass('bg-slate-100 text-slate-600').text('Selesai');
+            $card.find('span.rounded-full').removeClass('bg-status-online/10 text-status-online').addClass('bg-blue-100 text-blue-700').text('Selesai');
             $btn.remove();
           })
           .catch((xhr) => {

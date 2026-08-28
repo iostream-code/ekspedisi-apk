@@ -172,8 +172,10 @@ function detailBodyHtml(sj) {
  * components/tableToolbar.js). Dua sumber baris tercampur: otomatis dari
  * checkpoint foto "sj" supir (trip_id terisi), dan manual dibuat admin lewat
  * "+ Buat SJ" (trip_id boleh kosong). SAMA SEKALI TIDAK berhubungan dengan
- * tabel surat_jalan lama milik backend-production (itu cuma dipakai fitur
- * "Cek" no_surat_jalan di form Perjalanan Baru, lihat adminNewTrip.js).
+ * tabel surat_jalan lama milik backend-production (dulu cuma dipakai fitur
+ * "Cek" no_surat_jalan di form "Perjalanan Baru" -- form itu sendiri sudah
+ * dihapus 2026-08-25 bareng adminNewTrip.js, lihat catatan di
+ * adminDriverDetail.js).
  *
  * **Dua mode, didefinisikan ulang 2026-08-23 (dulu "aktif" = semua status
  * tercampur, "riwayat" = tervalidasi):**
