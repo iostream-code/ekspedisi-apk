@@ -65,20 +65,27 @@ function tripPhotoMap(sj) {
 /**
  * Daftar foto yang ditampilkan di modal Detail -- gabungan foto checkpoint
  * SUPIR (berangkat/serah terima, murni dari trip_photos) dan foto milik SJ
- * sendiri (foto_surat_jalan/foto_validasi). "Foto SJ" SENGAJA prioritaskan
- * trip_photos.sj (checkpoint asli supir) drpd foto_surat_jalan kalau dua-duanya
- * ada -- utk SJ trip-linked isinya identik (upsertFromTripPhoto() nulis ke
- * keduanya sekaligus), tapi kalau admin PERNAH menimpa foto_surat_jalan lewat
- * "Lampirkan Foto" manual SESUDAH checkpoint supir, trip_photos.sj tetap versi
- * ASLI dari lapangan -- itu yang lebih relevan disebut "Foto SJ" (checkpoint),
- * foto_surat_jalan cuma dipakai fallback utk SJ manual yang tidak py trip sama
- * sekali.
+ * sendiri (foto_surat_jalan/foto_serah_terima/foto_validasi). "Foto SJ" SENGAJA
+ * prioritaskan trip_photos.sj (checkpoint asli supir) drpd foto_surat_jalan
+ * kalau dua-duanya ada -- utk SJ trip-linked isinya identik
+ * (upsertFromTripPhoto() nulis ke keduanya sekaligus), tapi kalau admin PERNAH
+ * menimpa foto_surat_jalan lewat "Lampirkan Foto" manual SESUDAH checkpoint
+ * supir, trip_photos.sj tetap versi ASLI dari lapangan -- itu yang lebih
+ * relevan disebut "Foto SJ" (checkpoint), foto_surat_jalan cuma dipakai
+ * fallback utk SJ manual yang tidak py trip sama sekali.
+ *
+ * "Foto Serah Terima" sama polanya (2026-08-29) -- prioritaskan
+ * trip_photos.serah_terima (checkpoint asli supir INTERNAL lewat app), fallback
+ * ke sj.foto_serah_terima (diupload MANUAL admin lewat tombol "Serah Terima"
+ * di tabel, khusus SJ supir EKSTERNAL yang tidak pernah punya trip_photos sama
+ * sekali -- lihat tombolnya di render() & App\Ekspedisi\Support\
+ * SuratJalan::attachSerahTerima() backend).
  */
 function fotoEntries(sj) {
   const trip = tripPhotoMap(sj);
   return [
     { label: 'Foto Berangkat', path: trip.berangkat, border: 'border border-slate-200' },
-    { label: 'Foto Serah Terima', path: trip.serah_terima, border: 'border border-slate-200' },
+    { label: 'Foto Serah Terima', path: trip.serah_terima || sj.foto_serah_terima, border: 'border border-slate-200' },
     { label: 'Foto SJ', path: trip.sj || sj.foto_surat_jalan, border: 'border border-slate-200' },
     { label: 'Foto Validasi', path: sj.foto_validasi, border: 'border-2 border-blue-400' },
   ].filter((f) => f.path);
@@ -209,6 +216,14 @@ function detailBodyHtml(sj) {
  * satu-satunya isinya, tombol Validasi, tidak pernah muncul di sana karena
  * semua barisnya sudah tervalidasi, jadi kolomnya sendiri ikut dihapus,
  * bukan cuma dikosongkan -- lihat `showAksi` di render()).
+ *
+ * **Tombol "Serah Terima" (2026-08-29)** -- kolom Aksi TIDAK LAGI cuma
+ * Validasi, ditambah tombol kedua khusus baris `driver_tipe === 'eksternal'`
+ * (supir eksternal tidak pernah punya trip/checkpoint app sama sekali, lihat
+ * fotoEntries()). Beda dari Validasi: OPSIONAL & tidak menghilang setelah
+ * upload sukses (admin boleh ganti fotonya berkali-kali sampai SJ-nya
+ * tervalidasi, tidak mengunci status apa pun) -- lihat App\Ekspedisi\Support\
+ * SuratJalan::attachSerahTerima() backend.
  */
 export async function renderAdminSuratJalan($container) {
   renderNavbar($container, 'Ekspedisi');
@@ -357,6 +372,34 @@ export async function renderAdminSuratJalan($container) {
       `);
 
       $tr.on('dblclick', () => renderModal({ title: 'Detail Surat Jalan', bodyHtml: detailBodyHtml(sj) }));
+
+      if (showAksi && sj.status !== 'tervalidasi' && sj.driver_tipe === 'eksternal') {
+        // Supir eksternal tidak checkpoint apa pun lewat app -- admin bisa
+        // sekalian lampirkan bukti serah terima di sini, OPSIONAL & tidak
+        // mempengaruhi status (beda dari Validasi) -- tombolnya tetap tampil
+        // sesudah upload supaya bisa diganti lagi kalau salah foto.
+        const $btnSt = $(`<button class="btn-table-action !bg-slate-100 !text-slate-600">Serah Terima</button>`);
+        $btnSt.on('click', async (e) => {
+          e.stopPropagation();
+          let blob;
+          try {
+            blob = await takePhoto();
+          } catch (e) {
+            return; // batal ambil foto
+          }
+          setButtonLoading($btnSt, true, '');
+          api.uploadFile(`/admin/sj/${sj.id}/serah-terima`, blob, 'photo')
+            .then((updated) => {
+              Object.assign(sj, updated);
+              setButtonLoading($btnSt, false);
+            })
+            .catch((xhr) => {
+              alert(xhr?.responseJSON?.message || 'Gagal mengunggah foto serah terima. Coba lagi.');
+              setButtonLoading($btnSt, false);
+            });
+        });
+        $tr.find('[data-aksi]').append($btnSt);
+      }
 
       if (showAksi && sj.status !== 'tervalidasi') {
         // SJ fisik yang sudah ditandatangani penerima & dibawa balik supir --

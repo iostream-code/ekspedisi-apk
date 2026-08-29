@@ -219,7 +219,8 @@ benar-benar dipanggil `api.js`/pages), dan cocok persis dengan
 | GET | `/admin/sj/:id` | (belum dipanggil dari UI) | — | `{ ...detail surat jalan }`, 404 kalau tidak ketemu |
 | PUT | `/admin/sj/:id` | (belum ada UI edit) | field opsional: `tujuan, kendaraan, plat, penerima, jumlah_kirim, tgl_kirim, catatan` | `{ ...surat jalan terupdate }` |
 | POST | `/admin/sj/:id/photo` | `adminNewSuratJalan.js` (kalau admin ambil foto sebelum submit) | multipart: `photo` | `{ ...surat jalan, status: 'terkirim' }` |
-| POST | `/admin/sj/:id/validasi` | `adminSuratJalan.js` (tombol "Validasi", foto SJ final bertandatangan) | multipart: `photo` | `{ ...surat jalan, status: 'tervalidasi' }`, 422 kalau sudah tervalidasi |
+| POST | `/admin/sj/:id/serah-terima` | `adminSuratJalan.js` (tombol "Serah Terima", cuma tampil kalau `driver_tipe === 'eksternal'`) | multipart: `photo` | `{ ...surat jalan }` — `status` TIDAK berubah, 422 kalau supirnya bukan eksternal |
+| POST | `/admin/sj/:id/validasi` | `adminSuratJalan.js` (tombol "Validasi", foto SJ final bertandatangan) | multipart: `photo` | `{ ...surat jalan, status: 'tervalidasi' }`, 422 kalau sudah tervalidasi. **(2026-08-28)** Sekalian menutup SPK yang disentuh SJ ini — `t_penjualan_header.status_pengirman` → `'selesai'` + `tgl_surat_jalan_selesai` diisi, di `backend-production` (tidak tampak di response ini, murni side-effect server) |
 
 Catatan: `api.js` memaksa logout + redirect ke `#/login` otomatis pada **response 401** di
 request apa pun (GET/POST/upload) — backend harus benar-benar balikin 401 untuk sesi
@@ -295,6 +296,13 @@ penerima saat barang diterima → dibawa balik ke admin → admin foto dokumen f
 tombolnya hilang — SJ yang sudah tervalidasi tidak bisa divalidasi ulang (backend menolak 422).
 Detail penuh (kenapa 3 status, kenapa foto checkpoint & foto validasi disimpan terpisah) ada di
 README `backend-migrasi`.
+
+**Menutup SPK sumbernya (2026-08-28)** — begitu tervalidasi, backend sekalian menandai SPK
+(`t_penjualan_header`, milik `backend-production`) yang disentuh SJ ini **selesai**
+(`status_pengirman = 'selesai'`, `tgl_surat_jalan_selesai` diisi waktu validasi) — sebelumnya
+tidak ada jalur manapun yang mengisi 2 kolom itu untuk SJ yang lahir dari app ini. Murni
+side-effect server, tidak ada perubahan di response/UI `ekspedisi-apk` sendiri — detail query &
+alasannya ada di README `backend-migrasi` bagian "Alur validasi".
 
 **Data historis (`asal='migrasi_legacy'`)** (2026-08-20) — hasil `migrate_legacy_surat_jalan.php`
 di `backend-migrasi` (data `surat_jalan` lama sejak 2024, lihat README di sana). Baris
@@ -996,3 +1004,51 @@ di device masing-masing.
 - Ikon & splash screen aplikasi (`public/` isinya baru `logo_koperindo.jpeg` buat halaman
   login, belum ada app icon/splash Cordova sungguhan — itu nanti masuk `res/` terpisah,
   konvensi Cordova, lihat catatan di bagian Tema di atas).
+
+## Tombol "+ Supir" dikembalikan, EKSTERNAL-only (2026-08-29)
+
+Tombol "+ Supir" di tab Monitoring (`adminDashboard.js`) sempat disembunyikan 2026-08-23
+(cuma di-comment, bukan dihapus). Dikembalikan lagi, tapi `adminNewDriver.js` sekarang
+**cuma bisa tambah supir eksternal** — tab Internal/Eksternal & field internal (`username`,
+foto SIM internal) dicopot dari form, bukan cuma disembunyikan. Alasan: halaman ini
+satu-satunya pintu masuk lewat `#/admin/driver/new` (tidak ada rute lain yang mengarah ke
+sana), dan supir INTERNAL memang tidak butuh jalur "tambah" manual — profilnya auto-provision
+saat login pertama (`SupirProfile::ensure()`, lihat "Gap yang sengaja ditutup" di atas), foto
+SIM-nya bisa dilengkapi belakangan lewat card "Dokumen" di `adminDriverDetail.js`. Backend
+(`POST /admin/drivers`) masih menerima `tipe: 'internal'` apa adanya — cuma form ini yang
+tidak lagi menawarkan pilihan itu.
+
+## Trip auto-selesai saat SJ divalidasi admin (2026-08-29)
+
+Side-effect server baru di `SuratJalan::validate()` (`backend-migrasi`, dipanggil
+`POST /admin/sj/:id/validasi`) — kalau SJ yang divalidasi trip-linked (`trip_id` terisi,
+jalur checkpoint foto supir internal) dan trip-nya masih `in_progress`, ikut ditandai
+`completed` sekalian. Kasusnya: supir lupa/belum sempat checkpoint foto terakhir tapi SJ-nya
+sudah divalidasi admin dari jalur lain — tanpa ini, trip nyangkut `in_progress` selamanya dan
+supirnya terus muncul "Berjalan" di peta/list Monitoring (`AdminController::drivers()`, kriteria
+#1: trip in_progress) walau pengirimannya sudah closing. Tidak ada perubahan di
+`ekspedisi-apk` sendiri (murni side-effect server, sama pola dgn catatan "Menutup SPK sumbernya"
+di atas) — detail query ada di README `backend-migrasi` bagian "Alur validasi".
+
+## Tombol "Serah Terima" manual, khusus supir eksternal (2026-08-29)
+
+Supir eksternal tidak checkpoint apa pun lewat app (tidak punya akun, tidak pernah dibikinkan
+trip sejak 2026-08-20) — slot "Foto Serah Terima" di modal Detail (`fotoEntries()`) sebelumnya
+SELALU kosong utk baris eksternal, tidak ada jalan mengisinya sama sekali. Ditambahkan tombol
+kedua di kolom Aksi tabel `adminSuratJalan.js`, **cuma tampil kalau `sj.driver_tipe ===
+'eksternal'` DAN status belum tervalidasi** — ambil foto (`takePhoto()`, pola sama persis dgn
+tombol Validasi) lalu `uploadFile` ke `POST /admin/sj/:id/serah-terima`. **Beda dari Validasi:**
+- **Opsional** — tidak wajib diisi, tidak menghalangi/mempengaruhi status SJ (`draft`/`terkirim`/
+  `tervalidasi` sama sekali tidak berubah, cuma kolom `foto_serah_terima` yang ke-update).
+- **Tombol TIDAK hilang setelah upload sukses** (beda dari Validasi yang `$btn.remove()`) — admin
+  boleh ganti fotonya berkali-kali kalau salah ambil, tetap muncul sampai SJ-nya tervalidasi
+  (baris pindah ke Riwayat, kolom Aksi ikut hilang seluruhnya seperti biasa).
+
+`fotoEntries()` (modal Detail) diupdate fallback-nya: prioritas tetap `trip_photos.serah_terima`
+(checkpoint asli supir internal) kalau ada, baru `sj.foto_serah_terima` (hasil upload manual admin
+ini) — jadi 1 slot "Foto Serah Terima" yang sama otomatis terisi dari sumber mana pun yang
+relevan tanpa perlu baris terpisah di tampilan. **Validasi (tombol "Validasi", `foto_validasi`)
+konsepnya TIDAK berubah** — tetap sepenuhnya diinput admin seperti sebelumnya, foto serah terima
+ini murni tambahan opsional yang independen. Detail backend (kolom baru, guard 422 khusus
+eksternal) ada di README `backend-migrasi` bagian "Foto 'serah terima' manual, khusus supir
+eksternal".
