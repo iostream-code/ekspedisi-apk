@@ -1063,3 +1063,72 @@ konsepnya TIDAK berubah** — tetap sepenuhnya diinput admin seperti sebelumnya,
 ini murni tambahan opsional yang independen. Detail backend (kolom baru, guard 422 khusus
 eksternal) ada di README `backend-migrasi` bagian "Foto 'serah terima' manual, khusus supir
 eksternal".
+
+## Submenu PO diseragamkan dgn submenu Customer (2026-08-29)
+
+Submenu "PO" (`adminSuratJalanPo.js`, ditambah 2026-08-26) semula MVP dgn tampilan/interaksi
+beda dari submenu "Customer" persisnya (dua-duanya di bawah tab SJ yang sama, dipilih lewat
+`sjSubTabs.js`) — laporan user setelah pull: tampilannya "tidak konsisten" pas pindah-pindah
+submenu. Diseragamkan 4 hal, SEMUA murni FE (backend `GET /admin/sj-po` tidak berubah, tetap
+array polos LIMIT 200 tanpa page/total):
+
+- **Kolom Status dicopot dari tabel** — ikut alasan yang sama persis dgn "Customer" (2026-08-23):
+  mode Aktif/Riwayat toolbar sudah membedakan kelompok status besarnya, badge Status detail tetap
+  ada di modal Detail (`detailBodyHtml()`, tidak berubah).
+- **Kolom Aksi ditambah** — tombol "Konfirmasi Kirim" inline di baris `status='DRAFT'`, pola SAMA
+  PERSIS dgn tombol Validasi "Customer" (`stopPropagation`, mutate `sj.status` di closure + render
+  ulang, TANPA refetch). Modal Detail (dobel klik baris) tetap ada berikut tombol
+  "Konfirmasi Kirim"-nya sendiri — tombol baris ini murni jalan pintas, bukan pengganti.
+- **Filter tahun ditambah** — beda dari "Customer" yang tahunnya dari endpoint terpisah
+  (`GET /admin/sj/years`), submenu PO turunkan daftar tahun langsung dari `allRows` yang sudah di
+  memori (`tahunOf()`: `sent_at` fallback `sj_date`) — tidak ada endpoint/request baru. Tahun
+  berjalan tetap selalu ada di opsi sekalipun belum ada data (sama pola dgn "Customer").
+- **Pagination ditambah** — reuse `components/pagination.js` yang sama, tapi murni client-side
+  (`Array.slice()` atas hasil filter tahun+pencarian yang sudah di memori) — beda dari "Customer"
+  yang paginasinya round-trip ke server tiap ganti halaman (volume 1000+ baris di sana, submenu PO
+  masih jauh di bawah LIMIT 200 backend jadi aman dimuat sekaligus).
+
+Kalau nanti volume SJ PO sudah besar (LIMIT 200 backend mulai kena), upgrade ke server-side
+pagination sama pola dgn "Customer" (ditambahkan 2026-08-20 setelah `migrate_legacy_surat_jalan.php`
+bikin datanya jadi ribuan baris) — `GET /admin/sj-po` perlu diubah balikin `{ data, total, page,
+per_page }` dulu di `PoSuratJalanController` (`backend-migrasi`).
+
+**Susulan (2026-08-29): sub-tab Customer/PO dirapikan menempel ke tab utama** — `sjSubTabs.js`
+semula pill `rounded-full` melayang DI DALAM `$main` (yang sudah berpadding `p-4`), jadi kelihatan
+kayak widget terpisah dari tab utama "SJ"/"Monitoring" di atasnya, bukan bagian darinya (keluhan
+user). Diperbaiki dgn 2 perubahan: (1) `renderSjSubTabs()` sekarang dipanggil dgn `$container`
+(halaman root, `adminSuratJalan.js`/`adminSuratJalanPo.js`), BUKAN `$main` lagi, dan dipanggil
+TEPAT SESUDAH `renderAdminTabs()` — jadi elemen ini nempel langsung di bawah tab utama TANPA
+jarak/padding di antaranya sama sekali, selebar penuh layar (sama seperti tab utama, tidak lagi
+dikurung margin `$main`). (2) Gaya barisnya jadi `border-b border-slate-200 bg-slate-50` (bukan
+`bg-white` polos kayak tab utama) supaya tetap kebaca sbg level navigasi KEDUA yang menyatu, bukan
+pengganti tab utama.
+
+**Susulan lagi (2026-08-29): bentuk tombol disamakan ke referensi inventory-apk** — percobaan
+pertama di atas pakai pill `rounded-full` lebar-mengikuti-teks + `bg-white shadow-sm` pas aktif
+(gaya "segmented control"), TERNYATA bukan itu yang dimaksud user ("bentuknya tidak seperti itu,
+coba lihat referensi seperti yg ada di inventory-apk"). Referensi sungguhannya:
+`inventory-apk/src/lib/shell.js`, baris `#nav-tabs-secondary`/`.hnt-tab-secondary` (sub-tab
+Home/Stock In/Stock Out/Opname di bawah tab primary "STOCK", pola PERSIS yang sama yang mau
+ditiru di sini: sub-tab menempel di bawah tab utama). Polanya: tombol `flex-1` MENGISI PENUH
+lebar sejajar (sama seperti tab utama sendiri, bukan pill sekecil teksnya), aktif = fill solid
+`bg-brand-600 text-white` (resep SAMA PERSIS dgn tab utama aktif, cuma beda skala), tidak aktif =
+POLOS `text-slate-600` TANPA background sama sekali (beda dari tab utama yang inaktifnya tetap
+dapat pill abu-abu `bg-slate-100`) — baris kedua ini sengaja dibuat lebih "ringan" drpd baris
+pertama biar levelnya kebaca beda, persis kayak `.hnt-tab-secondary` referensi yang cuma toggle
+`bg-primary`/`text-white` pas aktif, tidak pernah toggle background apa pun pas tidak aktif.
+
+## Backend `/admin/sj-po/*` diimplementasikan (2026-08-29)
+
+Sebelum ini, seluruh submenu "PO" (`adminSuratJalanPo.js`/`adminNewSuratJalanPo.js`) sudah
+lengkap di frontend tapi **memanggil endpoint yang belum ada sama sekali** di `backend-migrasi`
+(`PoSuratJalanController` baru dibuat sesi ini) — setiap aksi (lihat outstanding PO, buat SJ
+Tarik, konfirmasi kirim, tandai PO siap) akan selalu gagal sampai sekarang. Tidak ada perubahan
+kontrak di sisi FE KECUALI **tombol "Siap Kirim"** (`renderApprovedPoCard()`,
+`adminSuratJalanPo.js`) — sekarang WAJIB ambil foto dulu (`takePhoto()`, pola sama dgn tombol
+Validasi/Serah Terima di `adminSuratJalan.js`) sebelum `uploadFile` ke
+`POST /admin/sj-po/po/:id/ready`, karena skema aslinya (`pur_t_po_readiness.photo_path`) memang
+mewajibkan bukti foto — dulu dipanggil `api.post(...)` body kosong, yang TIDAK AKAN PERNAH bisa
+berhasil terhadap implementasi backend yang benar. Detail lengkap (kenapa backend belum ada,
+apa yang di-port dari mana, kolom/status apa saja) ada di README `backend-migrasi` bagian
+"SJ Tarik untuk Purchase Order".

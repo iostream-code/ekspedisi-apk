@@ -229,10 +229,10 @@ function detailBodyHtml(sj) {
 export async function renderAdminSuratJalan($container) {
   renderNavbar($container, 'Ekspedisi');
   renderAdminTabs($container, 'sj');
+  renderSjSubTabs($container, 'customer');
 
   const $main = $(`<main class="flex-1 space-y-3 p-4"></main>`);
   $container.append($main);
-  renderSjSubTabs($main, 'customer');
 
   const $tableSection = $(`<div></div>`);
   $main.append($tableSection);
