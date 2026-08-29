@@ -18,6 +18,17 @@ di README ini yang masih menyebut tab "SPK"/`adminSpkBelumSj.js` adalah **riwaya
 desain sebelum perubahan ini, dipertahankan apa adanya sebagai catatan, BUKAN dokumentasi
 perilaku yang masih berlaku.
 
+**[BARU 2026-08-26]** Tab **SJ** sekarang punya **2 submenu**: **Customer** (isi lama di atas,
+`ekspedisi_t_surat_jalan`, `adminSuratJalan.js`) dan **PO** (baru, `adminSuratJalanPo.js` +
+`adminNewSuratJalanPo.js`) — "SJ Tarik" untuk Purchase Order, baca/tulis LANGSUNG ke
+`pur_t_surat_jalan`/`pur_t_purchase_order` (skema modul Purchase milik backend-production,
+lewat `PoSuratJalanController` baru di `backend-migrasi/src/Ekspedisi/`, BUKAN modul
+Purchasing — lihat docblock controller itu untuk alasannya). Dipicu keputusan: SJ fisik utk
+PO tetap terbit dari Pusat, jadi detail pengiriman (no. SJ/supir/plat) diisi di sini oleh tim
+ekspedisi, bukan lagi diminta ke Jakarta (`produksi-apk` sekarang cuma minta foto konfirmasi
+penerimaan, lihat histori chat/commit `simplify/sj-jakarta-foto-only` di sana). Lihat
+`src/js/components/sjSubTabs.js` untuk switcher-nya.
+
 **Status: prototype/demo.** `platforms/` belum pernah di-generate (`cordova platform add`
 belum dijalankan), dan secara default app jalan dalam **mode mock** (`MOCK_MODE: true` di
 `src/js/config.js`) — semua data dummy, disimpan di memori, hilang tiap refresh. Backend
