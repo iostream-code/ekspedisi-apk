@@ -10,22 +10,6 @@ import { api } from '../api.js';
 import { navigate } from '../router.js';
 import { APP_CONFIG } from '../config.js';
 
-// [DIHAPUS 2026-08-30, rombak alur Retur/PO] Kartu "PO Menunggu Siap Kirim"
-// (renderApprovedPoCard, GET /admin/sj-po/approved-po, POST
-// /admin/sj-po/po/{id}/ready) -- "Tandai Siap" pindah lagi, kali ini ke User
-// Pusat di produksi-apk (poMarkPoReady()), BUKAN Admin Ekspedisi. Endpoint
-// backend (PoSuratJalan::markReady()) SENGAJA dibiarkan ada (dorman, tidak
-// ada pemanggil lagi dari app ini) -- lihat catatan di
-// PurchaseOrderController::updateStatus() (backend-production) utk endpoint
-// penggantinya.
-//
-// Alur input SJ di halaman ini SENDIRI juga berubah total (lihat
-// adminNewSuratJalanPo.js): sekarang 1 langkah, dipanggil SETELAH barang
-// fisik sampai (bukan sebelum kirim seperti dulu) -- SJ dibuat LANGSUNG
-// final ('RECEIVED'/'PARTIAL_RECEIVED'), tidak pernah 'DRAFT' lagi. Makanya
-// kolom Aksi & tombol "Konfirmasi Kirim" (dulu ada di sini) juga dicopot
-// total -- tidak ada lagi status yang butuh dikonfirmasi manual belakangan.
-
 const STATUS_LABEL = { PARTIAL_RECEIVED: 'Sebagian Diterima', RECEIVED: 'Diterima', CANCELLED: 'Dibatalkan' };
 const STATUS_CLASS = {
   PARTIAL_RECEIVED: 'bg-yellow-50 text-yellow-700',
@@ -33,9 +17,6 @@ const STATUS_CLASS = {
   CANCELLED: 'bg-status-alert/10 text-status-alert',
 };
 
-// receive_photo_path disimpan RELATIF ke API_BASE_URL app ini (bukan URL
-// absolut) -- beda dari pur_t_po_readiness.photo_path (markReady()) yang
-// memang sengaja absolut, lihat catatan di PoSuratJalanController::markReady().
 function fotoUrl(path) {
   return /^https?:\/\//.test(path) ? path : `${APP_CONFIG.API_BASE_URL}/${path}`;
 }
@@ -59,7 +40,7 @@ function detailBodyHtml(sj) {
         <dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Ringkasan</dt>
         <dd class="mt-1 text-slate-700">
           <p class="font-medium text-ink">${sj.sj_number || '-'}</p>
-          <p class="mt-0.5 text-xs text-slate-400">Supplier: ${sj.supplier_name || '-'}</p>
+          <p class="mt-0.5 text-xs text-slate-400">Ref. Retur: ${sj.retur_number || '-'} &middot; Supplier: ${sj.supplier_name || '-'}</p>
         </dd>
       </div>
       <div class="grid grid-cols-2 gap-3">
@@ -103,31 +84,26 @@ function detailBodyHtml(sj) {
 }
 
 /**
- * Submenu "PO" di tab SJ -- SJ Tarik utk Purchase Order, pur_t_surat_jalan
- * (skema MILIK modul Purchase backend-production, baca/tulis LANGSUNG dari
- * sini via PoSuratJalanController di backend-migrasi -- lihat docblock
- * controller itu utk alasan lengkap kenapa fitur ini ada).
+ * Submenu "Retur" di tab SJ (2026-08-30, BARU -- rombak alur Retur/PO) --
+ * SJ pengganti dari retur PO, pur_t_surat_jalan (skema MILIK modul Purchase
+ * backend-production, baca/tulis LANGSUNG dari sini via
+ * ReturPoSuratJalanController di backend-migrasi -- lihat docblock
+ * App\Ekspedisi\Support\ReturPoSuratJalan utk alasan lengkap).
  *
- * **[ROMBAK 2026-08-30] SJ sekarang = bukti terima, 1 langkah, TIDAK PERNAH
- * 'DRAFT' lagi** -- admin ekspedisi input SJ SETELAH barang fisik sampai
- * (lihat adminNewSuratJalanPo.js), langsung final 'RECEIVED'/
- * 'PARTIAL_RECEIVED'. Konsekuensinya: kolom Aksi & tombol "Konfirmasi
- * Kirim" (dulu ada di sini utk DRAFT->SENT) DICOPOT TOTAL -- tidak ada lagi
- * status yang butuh dikonfirmasi belakangan. Kartu "PO Menunggu Siap Kirim"
- * (dulu di atas tabel ini) juga dicopot -- "Tandai Siap" sekarang wewenang
- * User Pusat di produksi-apk, bukan Admin Ekspedisi lagi.
+ * Alur: Admin Inventory ajukan retur (inventory-apk) -> User Pusat approve
+ * (produksi-apk) -> muncul di sini (outstanding) -> Admin Ekspedisi
+ * menjadwalkan & input SJ SETELAH barang pengganti fisik sampai (pola SAMA
+ * PERSIS dgn "PO" -- 1 langkah, SJ langsung final, lihat
+ * adminNewReturSuratJalanPo.js).
  *
- * Backend (`GET /admin/sj-po`) TETAP balikin array polos (LIMIT 200, tanpa
- * page/per_page/total) -- volume SJ PO masih jauh dari situ, jadi filter
- * tahun/pencarian/pagination di bawah SEMUA client-side atas `allRows`.
- *
- * Mode Aktif = PARTIAL_RECEIVED (masih ada sisa PO yang belum masuk semua),
- * Riwayat = RECEIVED/CANCELLED (sudah tuntas).
+ * Backend (`GET /admin/sj-retur-po`) SAMA POLA dgn `/admin/sj-po` (array
+ * polos, LIMIT 200) -- filter tahun/pencarian/pagination client-side.
+ * Mode Aktif = PARTIAL_RECEIVED, Riwayat = RECEIVED/CANCELLED.
  */
-export async function renderAdminSuratJalanPo($container) {
+export async function renderAdminReturSuratJalanPo($container) {
   renderNavbar($container, 'Ekspedisi');
   renderAdminTabs($container, 'sj');
-  renderSjSubTabs($container, 'po');
+  renderSjSubTabs($container, 'retur');
 
   const $main = $(`<main class="flex-1 space-y-3 p-4"></main>`);
   $container.append($main);
@@ -148,7 +124,7 @@ export async function renderAdminSuratJalanPo($container) {
 
     const statusFilter = historyMode ? 'RECEIVED,CANCELLED' : 'PARTIAL_RECEIVED';
     try {
-      allRows = await api.get(`/admin/sj-po?${new URLSearchParams({ status: statusFilter })}`);
+      allRows = await api.get(`/admin/sj-retur-po?${new URLSearchParams({ status: statusFilter })}`);
     } catch (e) {
       $tableSection.html('<p class="p-4 text-status-alert">Gagal memuat data.</p>');
       return;
@@ -156,7 +132,6 @@ export async function renderAdminSuratJalanPo($container) {
     render();
   }
 
-  // Tanggal acuan tahun = received_at, fallback sj_date.
   function tahunOf(sj) {
     const raw = sj.received_at || sj.sj_date;
     return raw ? String(new Date(raw).getFullYear()) : null;
@@ -167,7 +142,9 @@ export async function renderAdminSuratJalanPo($container) {
     return allRows.filter((sj) => {
       if (tahunOf(sj) !== tahun) return false;
       if (!q) return true;
-      return (sj.sj_number || '').toLowerCase().includes(q) || (sj.supplier_name || '').toLowerCase().includes(q);
+      return (sj.sj_number || '').toLowerCase().includes(q)
+        || (sj.retur_number || '').toLowerCase().includes(q)
+        || (sj.supplier_name || '').toLowerCase().includes(q);
     });
   }
 
@@ -176,11 +153,6 @@ export async function renderAdminSuratJalanPo($container) {
     $tableSection.empty().append($card);
 
     const matched = filtered();
-    // Tahun yang BENERAN ada di allRows (bucket Aktif/Riwayat yang lagi
-    // ditampilkan) -- bukan dari server terpisah kayak "Customer" krn semua
-    // baris memang sudah di memori (lihat docblock render fungsi ini).
-    // Tahun berjalan tetap SELALU ada di opsi (sama alasan dgn "Customer" --
-    // supaya default-nya tidak pernah "hilang" dari dropdown).
     let years = [...new Set(allRows.map(tahunOf).filter(Boolean))].sort((a, b) => b - a);
     if (!years.includes(String(currentYear))) years = [currentYear, ...years].sort((a, b) => b - a);
 
@@ -189,8 +161,8 @@ export async function renderAdminSuratJalanPo($container) {
       historyActive: historyMode,
       onRefresh: load,
       onToggleHistory: () => { historyMode = !historyMode; page = 1; load(); },
-      addLabel: '+ Buat SJ Tarik',
-      onAdd: () => navigate('/admin/sj/po/new'),
+      addLabel: '+ Buat SJ Retur',
+      onAdd: () => navigate('/admin/sj/retur-po/new'),
       searchValue: query,
       onSearch: (val) => { query = val; page = 1; render(); },
       yearOptions: years,
@@ -207,15 +179,13 @@ export async function renderAdminSuratJalanPo($container) {
     if (page > totalPages) page = totalPages;
     const list = matched.slice((page - 1) * perPage, page * perPage);
 
-    // Tidak ada lagi kolom/tombol Aksi -- SJ langsung final saat dibuat
-    // (lihat docblock renderAdminSuratJalanPo di atas), tidak ada status
-    // yang butuh dikonfirmasi belakangan dari list ini.
     const $tableWrap = $(`<div class="scroll-area max-h-[65vh] overflow-auto"></div>`);
     const $table = $(`
       <table class="w-full text-sm tbl-bordered">
         <thead class="sticky top-0 z-10 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-400">
           <tr>
             <th class="whitespace-nowrap px-3 py-2 text-center">No SJ</th>
+            <th class="whitespace-nowrap px-3 py-2 text-center">Ref. Retur</th>
             <th class="whitespace-nowrap px-3 py-2 text-center">Supplier</th>
             <th class="whitespace-nowrap px-3 py-2 text-center">Supir / Kendaraan</th>
           </tr>
@@ -229,6 +199,7 @@ export async function renderAdminSuratJalanPo($container) {
       const $tr = $(`
         <tr class="cursor-pointer hover:bg-slate-50" title="Dobel klik untuk lihat detail">
           <td class="whitespace-nowrap px-3 py-2.5 align-top font-medium text-ink">${sj.sj_number || '-'}</td>
+          <td class="whitespace-nowrap px-3 py-2.5 align-top text-slate-600">${sj.retur_number || '-'}</td>
           <td class="whitespace-nowrap px-3 py-2.5 align-top text-slate-600">${sj.supplier_name || '-'}</td>
           <td class="whitespace-nowrap px-3 py-2.5 align-top text-slate-500">${sj.transporter_name || '-'}${sj.vehicle_number ? ' &middot; ' + sj.vehicle_number : ''}</td>
         </tr>
@@ -252,13 +223,13 @@ export async function renderAdminSuratJalanPo($container) {
   async function openDetail(id) {
     let sj;
     try {
-      sj = await api.get(`/admin/sj-po/${id}`);
+      sj = await api.get(`/admin/sj-retur-po/${id}`);
     } catch (e) {
       alert('Gagal memuat detail SJ.');
       return;
     }
 
-    renderModal({ title: 'Detail SJ Tarik', bodyHtml: detailBodyHtml(sj) });
+    renderModal({ title: 'Detail SJ Retur', bodyHtml: detailBodyHtml(sj) });
   }
 
   await load();

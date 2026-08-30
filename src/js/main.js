@@ -10,6 +10,8 @@ import { renderAdminSuratJalan } from './pages/adminSuratJalan.js';
 import { renderAdminNewSuratJalan } from './pages/adminNewSuratJalan.js';
 import { renderAdminSuratJalanPo } from './pages/adminSuratJalanPo.js';
 import { renderAdminNewSuratJalanPo } from './pages/adminNewSuratJalanPo.js';
+import { renderAdminReturSuratJalanPo } from './pages/adminReturSuratJalanPo.js';
+import { renderAdminNewReturSuratJalanPo } from './pages/adminNewReturSuratJalanPo.js';
 import { APP_CONFIG } from './config.js';
 import { login, isAuthenticated } from './auth.js';
 import { initLightboxDelegation } from './components/lightbox.js';
@@ -37,6 +39,13 @@ registerRoute('/admin/sj/new', renderAdminNewSuratJalan, { roles: ['admin'] });
 // tidak ada segmen dinamis di sini jadi urutannya sendiri tidak signifikan.
 registerRoute('/admin/sj/po/new', renderAdminNewSuratJalanPo, { roles: ['admin'] });
 registerRoute('/admin/sj/po', renderAdminSuratJalanPo, { roles: ['admin'] });
+// Submenu "Retur" (2026-08-30, BARU -- rombak alur Retur/PO, lihat
+// components/sjSubTabs.js) -- SJ pengganti dari retur PO yang sudah
+// disetujui User Pusat, TABEL/BACKEND BEDA dari '/admin/sj/po' di atas
+// (lihat docblock adminReturSuratJalanPo.js). Urutan new-sebelum-list sama
+// alasannya dgn '/admin/sj/po/new' di atas.
+registerRoute('/admin/sj/retur-po/new', renderAdminNewReturSuratJalanPo, { roles: ['admin'] });
+registerRoute('/admin/sj/retur-po', renderAdminReturSuratJalanPo, { roles: ['admin'] });
 registerRoute('/admin/sj', renderAdminSuratJalan, { roles: ['admin'] });
 registerRoute('/admin/driver/:driverId', renderAdminDriverDetail, { roles: ['admin'] });
 

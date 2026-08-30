@@ -4,6 +4,7 @@ import { navigate } from '../router.js';
 const SUB_TABS = [
   { key: 'customer', label: 'Customer', path: '/admin/sj' },
   { key: 'po', label: 'PO', path: '/admin/sj/po' },
+  { key: 'retur', label: 'Retur', path: '/admin/sj/retur-po' },
 ];
 
 /**
@@ -38,7 +39,7 @@ const SUB_TABS = [
  * `#f8fafc` inventory-apk, DIBULATKAN ke token yang sudah ada di sini) +
  * `border-b border-slate-200` (border tab utama app ini sendiri) tetap
  * dipertahankan sbg latar barisnya.
- * @param {'customer'|'po'} active
+ * @param {'customer'|'po'|'retur'} active
  */
 export function renderSjSubTabs($container, active) {
   const $tabs = $(`

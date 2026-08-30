@@ -6,10 +6,9 @@ import { navigate } from '../router.js';
 import { takePhoto } from '../camera.js';
 
 /**
- * Widget "Ambil Foto Bukti Terima" -- pola SAMA PERSIS dgn renderPhotoField()
- * di adminNewDriver.js (takePhoto() + thumbnail preview data-lightbox),
- * disalin bukan di-share krn masing-masing cuma dipakai 1 file (konvensi
- * app ini, lihat catatan serupa di file lain).
+ * Widget "Ambil Foto Bukti Terima" -- disalin dari adminNewSuratJalanPo.js
+ * (pola sama dgn renderPhotoField() di adminNewDriver.js), bukan di-share
+ * krn masing-masing cuma dipakai 1 file (konvensi app ini).
  */
 function renderPhotoField($container, label) {
   const $field = $(`
@@ -41,31 +40,17 @@ function renderPhotoField($container, label) {
 }
 
 /**
- * Form "Buat SJ Tarik" (submenu "PO"). Beda dari adminNewSuratJalan.js
- * (submenu "Customer", SPK/t_penjualan_header): di sini sumber datanya PO
- * (pur_t_purchase_order, status READY), diambil dari GET
- * /admin/sj-po/outstanding-po (PoSuratJalanController, backend-migrasi --
- * baca LANGSUNG tabel pur_t_* milik modul Purchase backend-production).
- *
- * 1 SJ = 1 PO (MVP) -- beda dari "Customer" yang boleh lintas SPK sekaligus.
- * Backend (PoSuratJalanController::store()) sebenarnya SANGGUP terima
- * banyak PO asal supplier-nya sama, tapi FE ini sengaja dibatasi 1 PO per
- * submit dulu (form lebih sederhana, volume SJ PO masih kecil) -- gampang
- * diperluas nanti kalau ternyata perlu multi-PO per SJ (pola "SPK groups"
- * yg sudah ada di adminNewSuratJalan.js bisa dicontek).
- *
- * **[ROMBAK 2026-08-30]** Form ini sekarang dipanggil SETELAH barang fisik
- * sampai (bukan sebelum kirim seperti dulu) -- qty yang diisi = qty yang
- * BENAR-BENAR diterima, bukan rencana kirim. Foto bukti terima jadi WAJIB
- * (backend `PoSuratJalan::create()` menolak tanpanya). Submit = SJ langsung
- * final ('RECEIVED'/'PARTIAL_RECEIVED') dalam 1 langkah, tidak ada lagi
- * tahap "Konfirmasi Kirim" terpisah setelah ini. Request jadi multipart
- * (`api.postMultipart`, bukan `api.post` JSON polos) krn ada file + array
- * campur -- `items` dikirim sbg 1 field JSON string (`JSON.stringify`),
- * pola sama dgn StockInController::submitStockInManual() (modul Inventory).
+ * Form "Buat SJ Retur" (submenu "Retur", 2026-08-30, BARU -- rombak alur
+ * Retur/PO). Sumber datanya retur PO (pur_t_retur_purchase, status
+ * APPROVED + retur_action=REPLACEMENT), diambil dari GET
+ * /admin/sj-retur-po/outstanding-po (ReturPoSuratJalanController,
+ * backend-migrasi -- baca LANGSUNG tabel pur_t_* milik modul Purchase
+ * backend-production). Pola SAMA PERSIS dgn adminNewSuratJalanPo.js
+ * (submenu "PO") -- 1 SJ = 1 Retur, submit multipart (foto wajib), SJ
+ * langsung final ('RECEIVED'/'PARTIAL_RECEIVED') dalam 1 langkah.
  */
-export async function renderAdminNewSuratJalanPo($container) {
-  renderNavbar($container, 'Buat SJ Tarik', { onBack: () => navigate('/admin/sj/po') });
+export async function renderAdminNewReturSuratJalanPo($container) {
+  renderNavbar($container, 'Buat SJ Retur', { onBack: () => navigate('/admin/sj/retur-po') });
 
   const $main = $(`<main class="flex-1 p-4"></main>`);
   $container.append($main);
@@ -74,7 +59,7 @@ export async function renderAdminNewSuratJalanPo($container) {
   let drivers = [];
   try {
     [outstanding, drivers] = await Promise.all([
-      api.get('/admin/sj-po/outstanding-po'),
+      api.get('/admin/sj-retur-po/outstanding-po'),
       api.get('/admin/drivers?semua=1'),
     ]);
   } catch (e) {
@@ -85,33 +70,33 @@ export async function renderAdminNewSuratJalanPo($container) {
   if (!outstanding.length) {
     $main.html(`
       <div class="card p-6 text-center text-sm text-slate-500">
-        Tidak ada PO berstatus <b>READY</b> yang masih punya sisa qty untuk diterima saat ini.
+        Tidak ada retur berstatus <b>APPROVED</b> yang masih punya sisa qty untuk diterima saat ini.
       </div>
     `);
     return;
   }
 
-  const poOptions = outstanding
-    .map((po) => `<option value="${po.po_id}">${po.po_number} — ${po.supplier_name}</option>`)
+  const returOptions = outstanding
+    .map((r) => `<option value="${r.retur_id}">${r.retur_number} — ${r.supplier_name}${r.po_number ? ' (' + r.po_number + ')' : ''}</option>`)
     .join('');
   const driverOptions = drivers
     .map((d) => `<option value="${d.name}">${d.name}${d.tipe === 'eksternal' ? ' (Eksternal)' : ''}</option>`)
     .join('');
 
   $main.html(`
-    <form id="new-sj-po-form" class="space-y-4">
+    <form id="new-sj-retur-po-form" class="space-y-4">
       <div class="card space-y-4 p-4">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Purchase Order</p>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Retur Purchase</p>
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-600">Pilih PO</label>
-          <select id="po_id" required
+          <label class="mb-1 block text-sm font-medium text-slate-600">Pilih Retur</label>
+          <select id="retur_id" required
             class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
-            <option value="" disabled selected>-- Pilih PO --</option>
-            ${poOptions}
+            <option value="" disabled selected>-- Pilih Retur --</option>
+            ${returOptions}
           </select>
-          <p class="mt-1.5 text-xs text-slate-400">Cuma PO berstatus READY dengan sisa qty yang ditampilkan.</p>
+          <p class="mt-1.5 text-xs text-slate-400">Cuma retur berstatus APPROVED (disposisi Replacement) dengan sisa qty yang ditampilkan.</p>
         </div>
-        <div id="po-items" class="hidden space-y-2"></div>
+        <div id="retur-items" class="hidden space-y-2"></div>
       </div>
 
       <div class="card space-y-4 p-4">
@@ -146,19 +131,19 @@ export async function renderAdminNewSuratJalanPo($container) {
 
   const photoField = renderPhotoField($main.find('#photo-field'), 'Foto Bukti Terima (wajib)');
 
-  function renderPoItems(poId) {
-    const po = outstanding.find((p) => String(p.po_id) === String(poId));
-    const $wrap = $('#po-items').empty();
-    if (!po) { $wrap.addClass('hidden'); return; }
+  function renderReturItems(returId) {
+    const r = outstanding.find((x) => String(x.retur_id) === String(returId));
+    const $wrap = $('#retur-items').empty();
+    if (!r) { $wrap.addClass('hidden'); return; }
 
-    po.items.forEach((it) => {
+    r.items.forEach((it) => {
       $wrap.append(`
-        <div class="flex items-center gap-2 rounded-xl border border-slate-200 p-3" data-po-detail-id="${it.po_detail_id}">
+        <div class="flex items-center gap-2 rounded-xl border border-slate-200 p-3" data-retur-detail-id="${it.retur_detail_id}">
           <div class="flex-1">
             <p class="text-sm text-ink">${it.material_name} <span class="text-xs text-slate-400">${it.unit_code}</span></p>
-            <p class="text-xs text-slate-400">Sisa PO: ${it.qty_shippable}</p>
+            <p class="text-xs text-slate-400">Sisa Retur: ${it.qty_outstanding}</p>
           </div>
-          <input type="number" min="0" max="${it.qty_shippable}" step="0.01" value="${it.qty_shippable}"
+          <input type="number" min="0" max="${it.qty_outstanding}" step="0.01" value="${it.qty_outstanding}"
             class="item-qty w-24 rounded-lg border border-slate-200 px-2 py-2 text-right text-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
         </div>
       `);
@@ -166,21 +151,21 @@ export async function renderAdminNewSuratJalanPo($container) {
     $wrap.removeClass('hidden');
   }
 
-  $main.find('#po_id').on('change', function () { renderPoItems($(this).val()); });
+  $main.find('#retur_id').on('change', function () { renderReturItems($(this).val()); });
 
-  $main.find('#new-sj-po-form').on('submit', function (e) {
+  $main.find('#new-sj-retur-po-form').on('submit', function (e) {
     e.preventDefault();
     const $btn = $('#btn-submit');
     const $err = $('#form-error').addClass('hidden');
 
-    const poId = $('#po_id').val();
-    if (!poId) { $err.text('Pilih PO terlebih dahulu.').removeClass('hidden'); return; }
+    const returId = $('#retur_id').val();
+    if (!returId) { $err.text('Pilih retur terlebih dahulu.').removeClass('hidden'); return; }
 
     const items = [];
-    $main.find('[data-po-detail-id]').each(function () {
-      const podId = $(this).data('po-detail-id');
+    $main.find('[data-retur-detail-id]').each(function () {
+      const detailId = $(this).data('retur-detail-id');
       const qty = Number($(this).find('.item-qty').val() || 0);
-      if (qty > 0) items.push({ po_detail_id: podId, qty });
+      if (qty > 0) items.push({ retur_detail_id: detailId, qty });
     });
     if (!items.length) {
       $err.text('Isi qty minimal untuk 1 item.').removeClass('hidden');
@@ -196,14 +181,14 @@ export async function renderAdminNewSuratJalanPo($container) {
 
     setButtonLoading($btn, true, 'Menyimpan...');
 
-    api.postMultipart('/admin/sj-po', {
+    api.postMultipart('/admin/sj-retur-po', {
       driver_name: driverName,
       vehicle_number: vehicleNumber,
       notes: ($('#notes').val() || '').trim(),
       items: JSON.stringify(items),
       photo: photoBlob,
     })
-      .then(() => navigate('/admin/sj/po'))
+      .then(() => navigate('/admin/sj/retur-po'))
       .catch((xhr) => {
         $err.text(xhr?.responseJSON?.message || 'Gagal menyimpan SJ. Coba lagi.').removeClass('hidden');
         setButtonLoading($btn, false);
