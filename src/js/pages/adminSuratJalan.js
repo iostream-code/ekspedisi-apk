@@ -380,12 +380,15 @@ export async function renderAdminSuratJalan($container) {
         // sekalian lampirkan bukti serah terima di sini, OPSIONAL & tidak
         // mempengaruhi status (beda dari Validasi) -- tombolnya tetap tampil
         // sesudah upload supaya bisa diganti lagi kalau salah foto.
+        // source: 'gallery' (2026-08-31) -- foto ini biasanya sudah ada duluan
+        // (dikirim supir eksternal lewat WA/dll ke admin), bukan difoto ulang
+        // langsung pakai kamera saat itu juga.
         const $btnSt = $(`<button class="btn-table-action !bg-slate-100 !text-slate-600">Serah Terima</button>`);
         $btnSt.on('click', async (e) => {
           e.stopPropagation();
           let blob;
           try {
-            blob = await takePhoto();
+            blob = await takePhoto({ source: 'gallery' });
           } catch (e) {
             return; // batal ambil foto
           }

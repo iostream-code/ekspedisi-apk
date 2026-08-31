@@ -481,6 +481,57 @@ dst) SETELAH modal-nya kepasang ke DOM — dipakai `adminEkspedisiList.js` buat 
 Perubahan ini backward-compatible (properti tambahan di objek return, pemanggil lama yang cuma
 pakai `close` tidak perlu diubah).
 
+## 2 bug ditemukan & diperbaiki saat verifikasi flow Tambah Ekspedisi & Tambah Supir (2026-08-31)
+
+**Bug 1 — modal "Tambah/Edit Perusahaan Ekspedisi" tidak pernah tertutup setelah submit sukses.**
+`openForm()` (`adminEkspedisiList.js`) manggil `onSaved()` (reload list) di `.then()` request
+sukses, tapi tidak pernah manggil `close()` yang dibalikin `renderModal()` — modal (elemen
+terpisah, langsung nempel ke `<body>`, lihat catatan `components/modal.js` di atas) tetap
+nongkrong di layar dengan tombol "Menyimpan..." macet permanen di state loading, walau data-nya
+sendiri SUDAH benar tersimpan (list di baliknya sudah ke-refresh). User harus klik X/klik luar
+modal manual buat sadar prosesnya sebenarnya sukses. **Fix**: `close()` ikut di-destructure dari
+`renderModal()` & dipanggil sebelum `onSaved()` di handler sukses.
+
+**Bug 2 — tombol "Ambil Foto" (KTP/SIM/STNK, Tambah Supir Eksternal) tidak membuka dialog
+apa pun saat dites di browser biasa (`npm run dev`, bukan device Cordova asli).**
+Fallback browser di `camera.js` (dipakai kalau `navigator.camera` — plugin Cordova — belum ada,
+persis kondisi development) bikin `<input type="file">` lalu langsung `.click()` TANPA pernah
+di-`appendChild()` ke DOM. Versi Chrome yang dites (151) menolak membuka dialog file native utk
+elemen `<input>` yang belum ter-attach ke document saat di-`.click()` lewat JS — jadi tombolnya
+diam saja, tidak ada error di console pun (silent no-op), bikin flow ini MUSTAHIL dites di
+browser biasa sama sekali. Kemungkinan sudah lama begini (bukan regresi baru), cuma baru
+ketahuan sekarang karena baru pertama kali dites end-to-end pakai automated browser driver,
+bukan device fisik. **Fix**: `input` di-`appendChild()` ke `document.body` (disembunyikan via
+`display:none`, di-`remove()` lagi di `onchange`) sebelum `.click()`. Tidak berdampak ke device
+Cordova asli (jalur `navigator.camera` sama sekali tidak lewat kode ini).
+
+Diverifikasi ulang end-to-end (MOCK_MODE + `AUTO_LOGIN_ROLE: 'admin'` sementara, browser
+headless) setelah kedua fix: Tambah Ekspedisi (modal nutup, entry baru muncul di list) & Tambah
+Supir Eksternal (3 foto placeholder berhasil dipilih, submit sukses, redirect ke dashboard) —
+keduanya jalan tanpa error console/network (selain 404 `cordova.js`, itu memang cuma ada di
+build Cordova asli, bukan bug).
+
+## Foto Serah Terima (admin) sekarang dari galeri, bukan kamera (2026-08-31)
+
+Tombol "Serah Terima" (`adminSuratJalan.js`, tab SJ) — foto yang dilampirkan di sini biasanya
+SUDAH ADA duluan (dikirim supir eksternal lewat WA/dll ke admin), bukan difoto langsung saat itu
+juga. `camera.js#takePhoto()` diperluas terima opsi `{ source: 'camera' | 'gallery' }` (default
+tetap `'camera'`, tidak mengubah pemanggil lain — checkpoint supir `driverWorkflow.js`, dokumen
+KTP/SIM/STNK `adminNewDriver.js`, tombol "Validasi" — semua TETAP kamera langsung, sengaja tidak
+ikut diubah karena itu bukti fisik yang memang harus difoto saat itu juga). `source: 'gallery'`:
+Cordova pakai `Camera.PictureSourceType.PHOTOLIBRARY` (bukan `CAMERA`); fallback browser (dev)
+cukup TIDAK set atribut `capture` pada `<input type=file>`, browser otomatis nampilin file
+picker/galeri biasa.
+
+**Bug latah ditemukan sekalian**: fallback browser lama pakai `input.capture = 'environment'`
+(assignment properti JS) yang TERNYATA tidak pernah ter-refleksi ke atribut HTML sungguhan di
+Chrome (dicek langsung via automated test) — jadi hint "buka kamera" itu sebenarnya tidak pernah
+berfungsi sama sekali, di kode manapun yang memakainya, bukan cuma di perubahan ini. Diganti ke
+`input.setAttribute('capture', 'environment')` yang benar-benar reflect ke atribut. Ini baru
+kepakai nyata saat dev-testing dari browser HP fisik di LAN (`vite.config.js` `host: true`) —
+di desktop Chrome dampaknya nol karena `capture` memang tidak mengubah apa pun perilaku file
+picker desktop.
+
 ## Topbar dirombak: jam berjalan + back dipisah dari topbar (2026-08-20)
 
 `components/navbar.js` (`renderNavbar()`, dipakai SEMUA halaman) dapat 2 perubahan struktural:

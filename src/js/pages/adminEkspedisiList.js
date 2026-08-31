@@ -51,7 +51,7 @@ function formHtml(eks) {
 }
 
 function openForm(eks, onSaved) {
-  const { $body } = renderModal({ title: eks ? 'Edit Perusahaan Ekspedisi' : 'Tambah Perusahaan Ekspedisi', bodyHtml: formHtml(eks) });
+  const { $body, close } = renderModal({ title: eks ? 'Edit Perusahaan Ekspedisi' : 'Tambah Perusahaan Ekspedisi', bodyHtml: formHtml(eks) });
 
   $body.find('#ekspedisi-form').on('submit', function (e) {
     e.preventDefault();
@@ -77,6 +77,7 @@ function openForm(eks, onSaved) {
     const request = eks ? api.put(`/admin/ekspedisi/${eks.id}`, body) : api.post('/admin/ekspedisi', body);
     request
       .then(() => {
+        close();
         onSaved();
       })
       .catch((xhr) => {
